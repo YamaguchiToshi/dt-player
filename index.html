@@ -5,8 +5,25 @@
 <title>dt-player</title>
 <style>
 :root{
-  --stage:#16212b; --panel:#0f1820; --line:#22313d; --stripe:#1b2832;
-  --ink:#e6edf2; --mute:#8da0af; --soon:#7fa8b8; --done:#3a4854; --now:#f5a524;
+  /* 画面まわりは中性の暗色にし、色温度を持たせるのは譜面だけにする。
+     そうすると譜面が「光っている面」として浮き上がる。 */
+  --chrome:#13131a;
+  --lift:#1a1a23;
+  --edge:#2b2b36;
+  --edge-hi:#3d3d4b;
+  --stage:#141d25;
+  --lane:#1a2530;
+  --ink:#e9edf2;
+  --mute:#8b93a2;
+  --wait:#7fa8b8;   /* これから鳴る音 */
+  --past:#3a4854;   /* 鳴った音 */
+  --now:#f5a524;    /* いま鳴っている音 */
+  /* 日本語は本文用のゴシック、音名と数字は等幅。楽器の状態表示と
+     人への説明を書き分ける。webフォントは読み込まない(回線のため)。 */
+  --sans:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic","Noto Sans JP",system-ui,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --bar:54px;
+  --read:76px;
 }
 *{box-sizing:border-box}
 html{height:100%}
@@ -16,92 +33,170 @@ body{
   overscroll-behavior:none;-webkit-text-size-adjust:100%;
   -webkit-user-select:none;user-select:none;
   -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
-  background:var(--panel);color:var(--ink);
-  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic","Noto Sans JP",system-ui,sans-serif;
-  font-feature-settings:"palt" 1;
-  display:grid;grid-template-columns:248px 1fr;
+  background:var(--chrome);color:var(--ink);
+  font-family:var(--sans);font-feature-settings:"palt" 1;
+  display:grid;grid-template-rows:auto minmax(0,1fr) auto;
 }
-aside{
-  background:var(--panel);border-right:1px solid var(--line);
-  -webkit-overflow-scrolling:touch;
-  padding-left:env(safe-area-inset-left);
-  padding:22px 0 16px;overflow-y:auto;display:flex;flex-direction:column;gap:20px;
-}
-h1{font-size:17px;font-weight:600;letter-spacing:.02em;margin:0 20px 4px}
-.sub{font-size:12.5px;line-height:1.6;color:var(--mute);margin:0 20px}
-.group{display:flex;flex-direction:column}
-.label{font-size:11.5px;color:var(--mute);margin:0 20px 7px}
+@supports (height:100dvh){body{height:100dvh}}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;
   -webkit-appearance:none;appearance:none;border-radius:0;touch-action:manipulation}
-.song{
-  display:flex;align-items:baseline;gap:8px;width:100%;
-  padding:8px 20px 8px 17px;border-left:3px solid transparent;text-align:left;font-size:13.5px;
+:focus-visible{outline:2px solid var(--now);outline-offset:2px}
+
+/* ---- 上の帯:いま何を弾いているか ---- */
+.top{
+  display:flex;align-items:center;gap:13px;
+  height:calc(var(--bar) + env(safe-area-inset-top));
+  padding:env(safe-area-inset-top) calc(15px + env(safe-area-inset-right)) 0 calc(15px + env(safe-area-inset-left));
+  border-bottom:1px solid var(--edge);
 }
-.song:hover{background:var(--stage)}
-.song[aria-current="true"]{border-left-color:var(--now);background:var(--stage);font-weight:600}
-.song b{font-weight:inherit}
-.song i{font-style:normal;font-size:11.5px;color:var(--mute);font-variant-numeric:tabular-nums;margin-left:auto}
-.tones{display:flex;gap:6px;padding:0 20px}
-.tone{flex:1;padding:7px 0;font-size:12.5px;text-align:center;border:1px solid var(--line);border-radius:3px;color:var(--mute)}
-.tone[aria-pressed="true"]{border-color:var(--now);color:var(--ink)}
-.sfmsg{margin:7px 20px 0;font-size:11.5px;line-height:1.5;color:var(--mute);min-height:1em}
+.open{
+  display:flex;align-items:center;gap:9px;flex:none;
+  padding:8px 14px 8px 11px;border:1px solid var(--edge);border-radius:4px;
+  font-size:13px;color:var(--mute);
+}
+.open:hover{color:var(--ink);border-color:var(--edge-hi)}
+.bars{display:flex;flex-direction:column;gap:3px;width:13px;flex:none}
+.bars i{display:block;height:1.5px;background:currentColor}
+.title{font-size:15px;font-weight:600;letter-spacing:.01em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.alert{margin:0;font-size:12px;color:var(--now);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;min-width:0}
+.alert[data-on="0"]{display:none}
+.count{margin-left:auto;flex:none;font-family:var(--mono);font-size:12px;
+  color:var(--mute);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.count b{color:var(--ink);font-weight:600;font-size:17px}
+
+/* ---- 譜面 ---- */
+/* Safari のグリッド行では height:100% が 0 になるので、relative の器に
+   absolute で広げる。サイズは器の getBoundingClientRect() から取る。 */
+#stagewrap{position:relative;min-width:0;min-height:0;overflow:hidden;background:var(--stage)}
+#roll{position:absolute;top:0;left:0;width:100%;height:100%;display:block;
+  touch-action:none;cursor:pointer}
+#roll:focus-visible{outline:2px solid var(--now);outline-offset:-3px}
+
+/* ---- 下の帯:次に鳴る音 ---- */
+/* 色の判別が難しい人への手がかりなので、装飾ではなく主役として大きく出す。 */
+.read{
+  display:flex;align-items:center;gap:20px;
+  height:calc(var(--read) + env(safe-area-inset-bottom));
+  padding:0 calc(15px + env(safe-area-inset-right)) env(safe-area-inset-bottom) calc(15px + env(safe-area-inset-left));
+  border-top:1px solid var(--edge);
+}
+.next{display:flex;flex-direction:column;gap:3px;min-width:0}
+.next .cap{font-size:10.5px;letter-spacing:.15em;color:var(--mute)}
+.next .val{display:flex;gap:18px;font-family:var(--mono);font-size:29px;line-height:1.05;
+  letter-spacing:.04em;white-space:nowrap;overflow:hidden}
+.next .val[data-end="1"]{display:block}
+.next .val[data-end="1"]{font-family:var(--sans);font-size:19px;color:var(--mute);letter-spacing:0}
+.acts{margin-left:auto;display:flex;gap:8px;flex:none}
+.act{padding:11px 15px;border:1px solid var(--edge);border-radius:4px;
+  font-size:13px;color:var(--mute)}
+.act:hover{color:var(--ink);border-color:var(--edge-hi)}
+
+/* ---- 引き出し:曲と音色 ---- */
+.scrim{position:fixed;inset:0;z-index:20;background:rgba(6,6,10,.6);
+  opacity:0;pointer-events:none;transition:opacity .18s ease}
+.scrim[data-open="1"]{opacity:1;pointer-events:auto}
+.panel{
+  position:fixed;top:0;bottom:0;left:0;z-index:21;
+  width:min(346px,88vw);
+  background:var(--lift);border-right:1px solid var(--edge);
+  display:flex;flex-direction:column;gap:22px;
+  padding:calc(20px + env(safe-area-inset-top)) 0 calc(18px + env(safe-area-inset-bottom));
+  padding-left:env(safe-area-inset-left);
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  transform:translateX(-101%);transition:transform .2s cubic-bezier(.2,.75,.3,1);
+}
+.panel[data-open="1"]{transform:none}
+.panel:focus{outline:none}
+.panel:focus-visible{outline:none}
+.brand{padding:0 20px}
+.mark{margin:0;font-family:var(--mono);font-size:18px;font-weight:600;letter-spacing:-.02em}
+.brand p.note{margin:7px 0 0;font-size:12px;line-height:1.65;color:var(--mute)}
+.close{position:absolute;top:calc(14px + env(safe-area-inset-top));right:12px;
+  width:34px;height:34px;font-size:17px;color:var(--mute);line-height:1}
+.close:hover{color:var(--ink)}
+.sec{display:flex;flex-direction:column}
+.sec>.cap{display:flex;font-size:10.5px;letter-spacing:.14em;color:var(--mute);margin:0 20px 9px}
+.sec>.cap span:last-child:not(:first-child){margin-left:auto;letter-spacing:.08em}
+.song{display:flex;align-items:baseline;gap:10px;width:100%;text-align:left;
+  padding:11px 20px 11px 17px;border-left:3px solid transparent;font-size:14px;line-height:1.45}
+.song:hover{background:rgba(255,255,255,.035)}
+.song[aria-current="true"]{border-left-color:var(--now);background:rgba(245,165,36,.08);font-weight:600}
+.song .taps{margin-left:auto;flex:none;font-family:var(--mono);font-size:11px;
+  color:var(--mute);font-variant-numeric:tabular-nums}
+.tones{display:flex;gap:7px;padding:0 20px}
+.tone{flex:1;padding:11px 0;font-size:13px;text-align:center;
+  border:1px solid var(--edge);border-radius:4px;color:var(--mute)}
+.tone:hover{color:var(--ink)}
+.tone[aria-pressed="true"]{border-color:var(--now);color:var(--ink);background:rgba(245,165,36,.09)}
+.sfmsg{margin:10px 20px 0;font-size:11.5px;line-height:1.55;color:var(--mute)}
 .sfmsg[data-bad="1"]{color:var(--now)}
-.file{margin:0 20px;font-size:12.5px;color:var(--mute);border:1px dashed var(--line);border-radius:3px;padding:9px 11px;cursor:pointer;display:block}
-.file:hover{color:var(--ink)}
+.sfmsg:empty{display:none}
+.file{display:block;margin:0 20px;padding:12px 14px;font-size:12.5px;color:var(--mute);
+  border:1px dashed var(--edge);border-radius:4px;cursor:pointer;
+  -webkit-appearance:none;appearance:none;touch-action:manipulation}
+.file:hover{color:var(--ink);border-color:var(--edge-hi)}
 .file input{display:none}
-main{display:grid;grid-template-rows:minmax(0,1fr) auto;min-width:0;min-height:0;background:var(--stage)}
-#stagewrap{position:relative;min-width:0;min-height:0;overflow:hidden}
-#roll{position:absolute;top:0;left:0;width:100%;height:100%;display:block;touch-action:none;cursor:pointer}
-.file{-webkit-appearance:none;appearance:none;touch-action:manipulation}
-#roll:focus-visible{outline:2px solid var(--now);outline-offset:-2px}
-footer{
-  border-top:1px solid var(--line);
-  padding:11px 22px calc(11px + env(safe-area-inset-bottom)) 22px;
-  display:flex;align-items:center;gap:14px;font-size:13px;
+
+@media (max-width:560px){
+  :root{--read:68px}
+  .next .val{font-size:24px}
+  .title{font-size:14px}
+  .act{padding:10px 12px;font-size:12.5px}
+  .open span.lbl{display:none}
+  .open{padding:9px 11px}
 }
-footer button{border:1px solid var(--line);border-radius:3px;padding:6px 13px;font-size:12.5px;color:var(--mute)}
-footer button:hover{color:var(--ink);border-color:var(--soon)}
-#count{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--mute)}
-#count b{color:var(--ink);font-weight:600;font-size:15px}
-#hint{color:var(--mute);font-size:12.5px}
-@supports (height:100dvh){body{height:100dvh}}
-@media (max-width:834px){
-  body{grid-template-columns:1fr;grid-template-rows:auto 1fr}
-  aside{border-right:0;border-bottom:1px solid var(--line);max-height:42vh}
-  main{min-height:58vh}
+@media (prefers-reduced-motion:reduce){
+  .panel,.scrim{transition:none}
 }
 </style>
 
-<aside>
-  <div>
-    <h1>dt-player</h1>
-    <p class="sub">スペースキーか画面のタップで1音ずつ進みます。押している間だけ音が伸びます。</p>
+<div class="top">
+  <button class="open" id="open" aria-expanded="false" aria-controls="panel">
+    <span class="bars" aria-hidden="true"><i></i><i></i><i></i></span><span class="lbl">曲と音色</span>
+  </button>
+  <p class="title" id="title">きらきら星</p>
+  <p class="alert" id="alert" data-on="0"></p>
+  <p class="count" id="count"><b>0</b> / 0</p>
+</div>
+
+<audio id="keepalive" loop playsinline preload="auto" src="data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YZABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"></audio>
+
+<div id="stagewrap"><canvas id="roll" tabindex="0" aria-label="ピアノロール"></canvas></div>
+
+<div class="read">
+  <div class="next">
+    <span class="cap">次の音</span>
+    <span class="val" id="next">—</span>
   </div>
-  <div class="group">
-    <p class="label">曲</p>
+  <div class="acts">
+    <button class="act" id="back">1つ戻す</button>
+    <button class="act" id="reset">最初から</button>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" data-open="0"></div>
+<aside class="panel" id="panel" data-open="0" aria-label="曲と音色" role="dialog" aria-modal="true" tabindex="-1">
+  <button class="close" id="close" aria-label="閉じる">✕</button>
+  <div class="brand">
+    <p class="mark">dt-player</p>
+    <p class="note">連携先の iPad アプリ の演奏データをブラウザで鳴らします。<br>開発元の非公式ツールです。</p>
+  </div>
+  <div class="sec">
+    <p class="cap"><span>曲</span><span>タップ数</span></p>
     <div id="songs"></div>
   </div>
-  <div class="group">
-    <p class="label">音色</p>
+  <div class="sec">
+    <p class="cap">音色</p>
     <div class="tones" id="tones"></div>
-    <p class="sfmsg" id="sfmsg"></p>
+    <p class="sfmsg" id="sfmsg" data-bad="0"></p>
   </div>
-  <div class="group">
-    <p class="label">自分で作ったデータ</p>
+  <div class="sec">
+    <p class="cap">自分で作ったデータ</p>
     <label class="file">JSONファイルを選ぶ<input type="file" id="file" accept=".json,application/json,text/json,text/plain"></label>
   </div>
 </aside>
-
-<audio id="keepalive" loop playsinline preload="auto" src="data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YZABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"></audio>
-<main>
-  <div id="stagewrap"><canvas id="roll" tabindex="0" aria-label="ピアノロール"></canvas></div>
-  <footer>
-    <button id="back">1つ戻す</button>
-    <button id="reset">最初から</button>
-    <span id="hint">スペースキーで演奏</span>
-    <span id="count"><b>0</b> / 0</span>
-  </footer>
-</main>
 
 <script>const SONGS=[{"name":"きらきら星","events":[{"values":[72,48,64],"velocity":100},{"values":[72,48,64],"velocity":100},{"values":[79,48,64],"velocity":100},{"values":[79,48,64],"velocity":100},{"values":[81,53,69],"velocity":100},{"values":[81,53,69],"velocity":100},{"values":[79,48,64],"velocity":100},{"values":[77,53,69],"velocity":100},{"values":[77,53,69],"velocity":100},{"values":[76,48,64],"velocity":100},{"values":[76,48,64],"velocity":100},{"values":[74,55,71],"velocity":100},{"values":[74,55,71],"velocity":100},{"values":[72,48,64],"velocity":100},{"values":[79,48,64],"velocity":100},{"values":[79,48,64],"velocity":100},{"values":[77,53,69],"velocity":100},{"values":[77,53,69],"velocity":100},{"values":[76,48,64],"velocity":100},{"values":[76,48,64],"velocity":100},{"values":[74,55,71],"velocity":100},{"values":[79,48,64],"velocity":100},{"values":[79,48,64],"velocity":100},{"values":[77,53,69],"velocity":100},{"values":[77,53,69],"velocity":100},{"values":[76,48,64],"velocity":100},{"values":[76,48,64],"velocity":100},{"values":[74,55,71],"velocity":100},{"values":[72,48,64],"velocity":100},{"values":[72,48,64],"velocity":100},{"values":[79,48,64],"velocity":100},{"values":[79,48,64],"velocity":100},{"values":[81,53,69],"velocity":100},{"values":[81,53,69],"velocity":100},{"values":[79,48,64],"velocity":100},{"values":[77,53,69],"velocity":100},{"values":[77,53,69],"velocity":100},{"values":[76,48,64],"velocity":100},{"values":[76,48,64],"velocity":100},{"values":[74,55,71],"velocity":100},{"values":[74,55,71],"velocity":100},{"values":[72,48,64],"velocity":100}]},{"name":"トルコ行進曲","events":[{"values":[71,57,64],"velocity":100},{"values":[69,57,64],"velocity":100},{"values":[68,57,64],"velocity":100},{"values":[69,57,64],"velocity":100},{"values":[72,57,64],"velocity":100},{"values":[74,57,64],"velocity":100},{"values":[72,57,64],"velocity":100},{"values":[71,57,64],"velocity":100},{"values":[72,57,64],"velocity":100},{"values":[76,57,64],"velocity":100},{"values":[77,57,64],"velocity":100},{"values":[76,57,64],"velocity":100},{"values":[75,57,64],"velocity":100},{"values":[76,57,64],"velocity":100},{"values":[83,57,64],"velocity":100},{"values":[81,57,64],"velocity":100},{"values":[80,57,64],"velocity":100},{"values":[81,57,64],"velocity":100},{"values":[83,57,64],"velocity":100},{"values":[81,57,64],"velocity":100},{"values":[80,57,64],"velocity":100},{"values":[81,57,64],"velocity":100},{"values":[84,57,64],"velocity":100},{"values":[81,57,64],"velocity":100},{"values":[84,57,64],"velocity":100},{"values":[83,52,59],"velocity":100},{"values":[81,52,59],"velocity":100},{"values":[79,52,59],"velocity":100},{"values":[81,52,59],"velocity":100},{"values":[83,52,59],"velocity":100},{"values":[81,52,59],"velocity":100},{"values":[79,52,59],"velocity":100},{"values":[81,52,59],"velocity":100},{"values":[83,52,59],"velocity":100},{"values":[81,52,59],"velocity":100},{"values":[79,59,64],"velocity":100},{"values":[78,59,63],"velocity":100},{"values":[76,52,59],"velocity":100},{"values":[76,48,55],"velocity":100},{"values":[77,48,55],"velocity":100},{"values":[79,48,55],"velocity":100},{"values":[79,48,55],"velocity":100},{"values":[81,48,55],"velocity":100},{"values":[79,48,55],"velocity":100},{"values":[77,48,55],"velocity":100},{"values":[76,48,55],"velocity":100},{"values":[74,55,62],"velocity":100},{"values":[67,55,62],"velocity":100},{"values":[76,48,55],"velocity":100},{"values":[77,48,55],"velocity":100},{"values":[79,48,55],"velocity":100},{"values":[79,48,55],"velocity":100},{"values":[81,48,55],"velocity":100},{"values":[79,48,55],"velocity":100},{"values":[77,48,55],"velocity":100},{"values":[76,48,55],"velocity":100},{"values":[74,55,62],"velocity":100},{"values":[72,57,64],"velocity":100},{"values":[74,57,64],"velocity":100},{"values":[76,57,64],"velocity":100},{"values":[76,57,64],"velocity":100},{"values":[77,57,64],"velocity":100},{"values":[76,57,64],"velocity":100},{"values":[74,57,64],"velocity":100},{"values":[72,57,64],"velocity":100},{"values":[71,52,59],"velocity":100},{"values":[64,52,59],"velocity":100},{"values":[72,57,64],"velocity":100},{"values":[74,57,64],"velocity":100},{"values":[76,57,64],"velocity":100},{"values":[76,57,64],"velocity":100},{"values":[77,57,64],"velocity":100},{"values":[76,57,64],"velocity":100},{"values":[74,57,64],"velocity":100},{"values":[72,57,64],"velocity":100},{"values":[71,52,59],"velocity":100},{"values":[71,57,64],"velocity":100},{"values":[69,57,64],"velocity":100},{"values":[68,57,64],"velocity":100},{"values":[69,57,64],"velocity":100},{"values":[72,57,64],"velocity":100},{"values":[74,57,64],"velocity":100},{"values":[72,57,64],"velocity":100},{"values":[71,57,64],"velocity":100},{"values":[72,57,64],"velocity":100},{"values":[76,57,64],"velocity":100},{"values":[77,57,64],"velocity":100},{"values":[76,57,64],"velocity":100},{"values":[75,57,64],"velocity":100},{"values":[76,57,64],"velocity":100},{"values":[83,57,64],"velocity":100},{"values":[81,57,64],"velocity":100},{"values":[80,57,64],"velocity":100},{"values":[81,57,64],"velocity":100},{"values":[83,57,64],"velocity":100},{"values":[81,57,64],"velocity":100},{"values":[80,57,64],"velocity":100},{"values":[81,57,64],"velocity":100},{"values":[84,53,63],"velocity":100},{"values":[81,53,63],"velocity":100},{"values":[83,53,63],"velocity":100},{"values":[84,52,57],"velocity":100},{"values":[83,52,57],"velocity":100},{"values":[81,50,59],"velocity":100},{"values":[80,50,59],"velocity":100},{"values":[81,48,57],"velocity":100},{"values":[76,48,57],"velocity":100},{"values":[77,50,59],"velocity":100},{"values":[74,50,59],"velocity":100},{"values":[72,52,57],"velocity":100},{"values":[71,52,56],"velocity":100},{"values":[69,57,64],"velocity":100}]},{"name":"木星","events":[{"values":[67,63,51],"velocity":100},{"values":[70,63,51],"velocity":100},{"values":[72,68,56],"velocity":100},{"values":[75,68,56],"velocity":100},{"values":[74,68,53],"velocity":100},{"values":[70,68,53],"velocity":100},{"values":[75,70,55],"velocity":100},{"values":[77,70,55],"velocity":100},{"values":[75,70,55],"velocity":100},{"values":[74,70,55],"velocity":100},{"values":[72,68,56],"velocity":100},{"values":[74,68,56],"velocity":100},{"values":[72,68,56],"velocity":100},{"values":[70,65,58],"velocity":100},{"values":[67,63,60],"velocity":100},{"values":[67,62,58],"velocity":100},{"values":[70,62,58],"velocity":100},{"values":[72,68,56],"velocity":100},{"values":[75,68,56],"velocity":100},{"values":[74,68,53],"velocity":100},{"values":[70,68,53],"velocity":100},{"values":[75,70,55],"velocity":100},{"values":[77,70,55],"velocity":100},{"values":[79,70,55],"velocity":100},{"values":[79,75,51],"velocity":100},{"values":[79,72,56],"velocity":100},{"values":[77,72,56],"velocity":100},{"values":[75,72,56],"velocity":100},{"values":[77,72,56],"velocity":100},{"values":[75,70,51],"velocity":100},{"values":[70,63,55],"velocity":100},{"values":[67,63,55],"velocity":100},{"values":[65,62,58],"velocity":100},{"values":[65,62,58],"velocity":100},{"values":[63,62,48],"velocity":100},{"values":[67,62,48],"velocity":100},{"values":[65,58,50],"velocity":100},{"values":[70,58,50],"velocity":100},{"values":[70,63,55],"velocity":100},{"values":[67,63,55],"velocity":100},{"values":[65,62,58],"velocity":100},{"values":[65,62,58],"velocity":100},{"values":[67,63,51],"velocity":100},{"values":[70,63,51],"velocity":100},{"values":[72,68,56],"velocity":100},{"values":[72,68,53],"velocity":100},{"values":[74,68,53],"velocity":100},{"values":[75,63,60],"velocity":100},{"values":[75,63,60],"velocity":100},{"values":[74,67,58],"velocity":100},{"values":[72,68,56],"velocity":100},{"values":[70,63,55],"velocity":100},{"values":[75,68,53],"velocity":100},{"values":[67,63,51],"velocity":100},{"values":[65,60,56],"velocity":100},{"values":[63,60,56],"velocity":100},{"values":[65,60,53],"velocity":100},{"values":[67,60,51],"velocity":100},{"values":[70,65,50],"velocity":100},{"values":[67,62,58],"velocity":100},{"values":[70,62,58],"velocity":100},{"values":[72,68,56],"velocity":100},{"values":[75,68,56],"velocity":100},{"values":[74,68,53],"velocity":100},{"values":[70,68,53],"velocity":100},{"values":[75,70,55],"velocity":100},{"values":[77,70,55],"velocity":100},{"values":[75,70,55],"velocity":100},{"values":[74,70,55],"velocity":100},{"values":[72,68,56],"velocity":100},{"values":[74,68,56],"velocity":100},{"values":[72,68,56],"velocity":100},{"values":[70,65,58],"velocity":100},{"values":[67,63,48],"velocity":100},{"values":[67,62,58],"velocity":100},{"values":[70,62,58],"velocity":100},{"values":[72,68,56],"velocity":100},{"values":[75,68,56],"velocity":100},{"values":[74,68,53],"velocity":100},{"values":[70,68,53],"velocity":100},{"values":[75,70,55],"velocity":100},{"values":[77,70,55],"velocity":100},{"values":[79,70,55],"velocity":100},{"values":[79,75,51],"velocity":100},{"values":[79,72,56],"velocity":100},{"values":[77,72,56],"velocity":100},{"values":[75,72,56],"velocity":100},{"values":[77,72,56],"velocity":100},{"values":[75,70,51],"velocity":100}]},{"name":"木星 オクターブ版","events":[{"values":[67,55,51],"velocity":100},{"values":[70,58,51],"velocity":100},{"values":[72,60,56],"velocity":100},{"values":[75,63,56],"velocity":100},{"values":[74,62,53],"velocity":100},{"values":[70,58,53],"velocity":100},{"values":[75,63,55],"velocity":100},{"values":[77,65,55],"velocity":100},{"values":[75,63,55],"velocity":100},{"values":[74,62,55],"velocity":100},{"values":[72,60,56],"velocity":100},{"values":[74,62,56],"velocity":100},{"values":[72,60,56],"velocity":100},{"values":[70,58],"velocity":100},{"values":[67,55,48],"velocity":100},{"values":[67,55],"velocity":100},{"values":[70,58],"velocity":100},{"values":[72,60,56],"velocity":100},{"values":[75,63,56],"velocity":100},{"values":[74,62,53],"velocity":100},{"values":[70,58,53],"velocity":100},{"values":[75,63,55],"velocity":100},{"values":[77,65,55],"velocity":100},{"values":[79,67,55],"velocity":100},{"values":[79,67,51],"velocity":100},{"values":[79,67,56],"velocity":100},{"values":[77,65,56],"velocity":100},{"values":[75,63,56],"velocity":100},{"values":[77,65,56],"velocity":100},{"values":[75,63,51],"velocity":100},{"values":[70,58,55],"velocity":100},{"values":[67,55],"velocity":100},{"values":[65,53],"velocity":100},{"values":[65,53],"velocity":100},{"values":[63,51,48],"velocity":100},{"values":[67,55,48],"velocity":100},{"values":[65,53,50],"velocity":100},{"values":[70,58,50],"velocity":100},{"values":[70,58,55],"velocity":100},{"values":[67,55],"velocity":100},{"values":[65,53],"velocity":100},{"values":[65,53],"velocity":100},{"values":[67,55,51],"velocity":100},{"values":[70,58,51],"velocity":100},{"values":[72,60,56],"velocity":100},{"values":[72,60,53],"velocity":100},{"values":[74,62,53],"velocity":100},{"values":[75,63,48],"velocity":100},{"values":[75,63,48],"velocity":100},{"values":[74,62,58],"velocity":100},{"values":[72,60,56],"velocity":100},{"values":[70,58,55],"velocity":100},{"values":[75,63,53],"velocity":100},{"values":[67,55,51],"velocity":100},{"values":[65,53],"velocity":100},{"values":[63,51],"velocity":100},{"values":[65,53],"velocity":100},{"values":[67,55,51],"velocity":100},{"values":[70,58,50],"velocity":100},{"values":[67,55],"velocity":100},{"values":[70,58],"velocity":100},{"values":[72,60,56],"velocity":100},{"values":[75,63,56],"velocity":100},{"values":[74,62,53],"velocity":100},{"values":[70,58,53],"velocity":100},{"values":[75,63,55],"velocity":100},{"values":[77,65,55],"velocity":100},{"values":[75,63,55],"velocity":100},{"values":[74,62,55],"velocity":100},{"values":[72,60,56],"velocity":100},{"values":[74,62,56],"velocity":100},{"values":[72,60,56],"velocity":100},{"values":[70,58],"velocity":100},{"values":[67,55,48],"velocity":100},{"values":[67,55],"velocity":100},{"values":[70,58],"velocity":100},{"values":[72,60,56],"velocity":100},{"values":[75,63,56],"velocity":100},{"values":[74,62,53],"velocity":100},{"values":[70,58,53],"velocity":100},{"values":[75,63,55],"velocity":100},{"values":[77,65,55],"velocity":100},{"values":[79,67,55],"velocity":100},{"values":[79,67,51],"velocity":100},{"values":[79,67,56],"velocity":100},{"values":[77,65,56],"velocity":100},{"values":[75,63,56],"velocity":100},{"values":[77,65,56],"velocity":100},{"values":[75,63,51],"velocity":100}]},{"name":"ラデツキー行進曲 ショート版","events":[{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[78,74,50],"velocity":100},{"values":[76,73,49],"velocity":100},{"values":[74,71,59],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[71,68,56],"velocity":100},{"values":[70,56],"velocity":100},{"values":[71,56],"velocity":100},{"values":[73,56],"velocity":100},{"values":[74,56],"velocity":100},{"values":[76,71,52],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[66,57],"velocity":100},{"values":[65,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[64,57,50],"velocity":100},{"values":[62,54,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[71,66,50],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[67,64,49],"velocity":100},{"values":[71,67,49],"velocity":100},{"values":[69,64,49],"velocity":100},{"values":[69,64,49],"velocity":100},{"values":[64,61,49],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[71,66,50],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[64,61,52],"velocity":100},{"values":[73,52],"velocity":100},{"values":[62,59,52],"velocity":100},{"values":[71,52],"velocity":100},{"values":[61,57],"velocity":100},{"values":[69,61,57],"velocity":100},{"values":[68,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[71,67,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[67,64,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[64,57],"velocity":100},{"values":[62,57,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[71,66,57],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[69,62,54],"velocity":100},{"values":[66,62,54],"velocity":100},{"values":[68,64,52],"velocity":100},{"values":[78,74,52],"velocity":100},{"values":[76,52],"velocity":100},{"values":[76,69,50],"velocity":100},{"values":[74,50],"velocity":100},{"values":[73,67,55],"velocity":100},{"values":[71,67,55],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[67,64,57],"velocity":100},{"values":[66,61,57],"velocity":100},{"values":[64,61,57],"velocity":100},{"values":[62,57,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100}]},{"name":"ラデツキー行進曲 完全版","events":[{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[78,74,50],"velocity":100},{"values":[76,73,49],"velocity":100},{"values":[74,71,59],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[71,68,56],"velocity":100},{"values":[70,56],"velocity":100},{"values":[71,56],"velocity":100},{"values":[73,56],"velocity":100},{"values":[74,56],"velocity":100},{"values":[76,71,52],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[66,57],"velocity":100},{"values":[65,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[64,57,50],"velocity":100},{"values":[62,54,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[71,66,50],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[67,64,49],"velocity":100},{"values":[71,67,49],"velocity":100},{"values":[69,64,49],"velocity":100},{"values":[69,64,49],"velocity":100},{"values":[64,61,49],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[71,66,50],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[64,61,52],"velocity":100},{"values":[73,52],"velocity":100},{"values":[62,59,52],"velocity":100},{"values":[71,52],"velocity":100},{"values":[61,57],"velocity":100},{"values":[69,61,57],"velocity":100},{"values":[68,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[71,67,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[67,64,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[64,57],"velocity":100},{"values":[62,57,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[71,66,57],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[69,62,54],"velocity":100},{"values":[66,62,54],"velocity":100},{"values":[68,64,52],"velocity":100},{"values":[78,74,52],"velocity":100},{"values":[76,52],"velocity":100},{"values":[76,69,50],"velocity":100},{"values":[74,50],"velocity":100},{"values":[73,67,55],"velocity":100},{"values":[71,67,55],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[67,64,57],"velocity":100},{"values":[66,61,57],"velocity":100},{"values":[64,61,57],"velocity":100},{"values":[62,57,50],"velocity":100},{"values":[62,57,50],"velocity":100},{"values":[62,57,50],"velocity":100},{"values":[74,50],"velocity":100},{"values":[73,50],"velocity":100},{"values":[74,71,50],"velocity":100},{"values":[74,71,50],"velocity":100},{"values":[73,67,50],"velocity":100},{"values":[74,71,55],"velocity":100},{"values":[74,71,55],"velocity":100},{"values":[73,67,55],"velocity":100},{"values":[74,71,59],"velocity":100},{"values":[79,74,59],"velocity":100},{"values":[71,67,50],"velocity":100},{"values":[74,71,50],"velocity":100},{"values":[73,62,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[73,69,50],"velocity":100},{"values":[74,69,54],"velocity":100},{"values":[74,69,54],"velocity":100},{"values":[73,69,54],"velocity":100},{"values":[74,69,57],"velocity":100},{"values":[78,74,57],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[69,66,57],"velocity":100},{"values":[67,64,57],"velocity":100},{"values":[71,67,57],"velocity":100},{"values":[69,66,57],"velocity":100},{"values":[74,69,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[71,67,57],"velocity":100},{"values":[69,66,57],"velocity":100},{"values":[67,64,57],"velocity":100},{"values":[71,67,57],"velocity":100},{"values":[71,67,57],"velocity":100},{"values":[69,66,57],"velocity":100},{"values":[67,64,57],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[69,66,57],"velocity":100},{"values":[67,64,57],"velocity":100},{"values":[71,67,57],"velocity":100},{"values":[69,66,57],"velocity":100},{"values":[74,69,57],"velocity":100},{"values":[73,70,54],"velocity":100},{"values":[73,70,54],"velocity":100},{"values":[70,66,54],"velocity":100},{"values":[71,66,59],"velocity":100},{"values":[74,71,59],"velocity":100},{"values":[73,70,54],"velocity":100},{"values":[73,70,54],"velocity":100},{"values":[70,66,54],"velocity":100},{"values":[71,66,59],"velocity":100},{"values":[74,71,59],"velocity":100},{"values":[78,73,54],"velocity":100},{"values":[78,74,59],"velocity":100},{"values":[78,74,59],"velocity":100},{"values":[78,73,54],"velocity":100},{"values":[78,74,59],"velocity":100},{"values":[78,74,59],"velocity":100},{"values":[78,73,54],"velocity":100},{"values":[78,74,59],"velocity":100},{"values":[78,74,59],"velocity":100},{"values":[78,73,54],"velocity":100},{"values":[78,74,59],"velocity":100},{"values":[78,74,59],"velocity":100},{"values":[78,73,54],"velocity":100},{"values":[66,54],"velocity":100},{"values":[65,54],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[64,57,50],"velocity":100},{"values":[62,54,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[71,66,50],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[67,64,49],"velocity":100},{"values":[71,67,49],"velocity":100},{"values":[69,64,49],"velocity":100},{"values":[69,64,49],"velocity":100},{"values":[64,61,49],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[71,66,50],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[64,61,52],"velocity":100},{"values":[73,52],"velocity":100},{"values":[62,59,52],"velocity":100},{"values":[71,52],"velocity":100},{"values":[61,57],"velocity":100},{"values":[69,61,57],"velocity":100},{"values":[68,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[71,67,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[67,64,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[64,57],"velocity":100},{"values":[62,57,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[71,66,57],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[69,62,54],"velocity":100},{"values":[66,62,54],"velocity":100},{"values":[68,64,52],"velocity":100},{"values":[78,74,52],"velocity":100},{"values":[76,52],"velocity":100},{"values":[76,69,50],"velocity":100},{"values":[74,50],"velocity":100},{"values":[73,67,55],"velocity":100},{"values":[71,67,55],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[67,64,57],"velocity":100},{"values":[66,61,57],"velocity":100},{"values":[64,61,57],"velocity":100},{"values":[62,57,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[64,52],"velocity":100},{"values":[59],"velocity":100},{"values":[68,56],"velocity":100},{"values":[64,52],"velocity":100},{"values":[71,59],"velocity":100},{"values":[68,56],"velocity":100},{"values":[76,52],"velocity":100},{"values":[52],"velocity":100},{"values":[61,57],"velocity":100},{"values":[61,57],"velocity":100},{"values":[52],"velocity":100},{"values":[61,57],"velocity":100},{"values":[61,57],"velocity":100},{"values":[61,57],"velocity":100},{"values":[62,59,57],"velocity":100},{"values":[64,61,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[59,56],"velocity":100},{"values":[61,57],"velocity":100},{"values":[62,59,52],"velocity":100},{"values":[68,62,52],"velocity":100},{"values":[71,68,52],"velocity":100},{"values":[69,66,52],"velocity":100},{"values":[68,64,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[64,61,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[52],"velocity":100},{"values":[61,57],"velocity":100},{"values":[61,57],"velocity":100},{"values":[52],"velocity":100},{"values":[61,57],"velocity":100},{"values":[61,57],"velocity":100},{"values":[61,57],"velocity":100},{"values":[62,59,57],"velocity":100},{"values":[64,61,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[59,56],"velocity":100},{"values":[61,57],"velocity":100},{"values":[62,59,52],"velocity":100},{"values":[68,62,52],"velocity":100},{"values":[71,68,52],"velocity":100},{"values":[69,66,52],"velocity":100},{"values":[68,64,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[64,61,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[62,59,52],"velocity":100},{"values":[68,62,52],"velocity":100},{"values":[71,68,52],"velocity":100},{"values":[69,61,57],"velocity":100},{"values":[59,56],"velocity":100},{"values":[61,57],"velocity":100},{"values":[62,59,56],"velocity":100},{"values":[68,64,56],"velocity":100},{"values":[71,68,56],"velocity":100},{"values":[69,66,52],"velocity":100},{"values":[68,64,59],"velocity":100},{"values":[66,62,59],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[64,61,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[73,69,52],"velocity":100},{"values":[73,69,52],"velocity":100},{"values":[59,56],"velocity":100},{"values":[61,57],"velocity":100},{"values":[62,59,56],"velocity":100},{"values":[68,64,56],"velocity":100},{"values":[71,68,56],"velocity":100},{"values":[69,66,52],"velocity":100},{"values":[68,64,59],"velocity":100},{"values":[66,62,59],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[61,57],"velocity":100},{"values":[64,61,57],"velocity":100},{"values":[69,57],"velocity":100},{"values":[73,57],"velocity":100},{"values":[76,57],"velocity":100},{"values":[74,57],"velocity":100},{"values":[73,57],"velocity":100},{"values":[71,68,52],"velocity":100},{"values":[69,64,52],"velocity":100},{"values":[68,64,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[64,59,52],"velocity":100},{"values":[62,59,52],"velocity":100},{"values":[61,56,52],"velocity":100},{"values":[59,56,52],"velocity":100},{"values":[52],"velocity":100},{"values":[61,57],"velocity":100},{"values":[61,57],"velocity":100},{"values":[52],"velocity":100},{"values":[61,57],"velocity":100},{"values":[61,57],"velocity":100},{"values":[61,57],"velocity":100},{"values":[62,59,57],"velocity":100},{"values":[64,61,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[59,56],"velocity":100},{"values":[61,57],"velocity":100},{"values":[62,59,52],"velocity":100},{"values":[68,62,52],"velocity":100},{"values":[71,68,52],"velocity":100},{"values":[69,66,52],"velocity":100},{"values":[68,64,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[64,61,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[62,59,52],"velocity":100},{"values":[68,62,52],"velocity":100},{"values":[71,68,52],"velocity":100},{"values":[69,61,57],"velocity":100},{"values":[59,56],"velocity":100},{"values":[61,57],"velocity":100},{"values":[62,59,56],"velocity":100},{"values":[68,64,56],"velocity":100},{"values":[71,68,56],"velocity":100},{"values":[69,66,52],"velocity":100},{"values":[68,64,59],"velocity":100},{"values":[66,62,59],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[64,61,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[73,69,52],"velocity":100},{"values":[73,69,52],"velocity":100},{"values":[59,56],"velocity":100},{"values":[61,57],"velocity":100},{"values":[62,59,56],"velocity":100},{"values":[68,64,56],"velocity":100},{"values":[71,68,56],"velocity":100},{"values":[69,66,52],"velocity":100},{"values":[68,64,59],"velocity":100},{"values":[66,62,59],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[61,57],"velocity":100},{"values":[64,61,57],"velocity":100},{"values":[69,57],"velocity":100},{"values":[73,57],"velocity":100},{"values":[76,57],"velocity":100},{"values":[74,57],"velocity":100},{"values":[73,57],"velocity":100},{"values":[71,68,52],"velocity":100},{"values":[69,64,52],"velocity":100},{"values":[68,64,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[64,59,52],"velocity":100},{"values":[62,59,52],"velocity":100},{"values":[61,56,52],"velocity":100},{"values":[59,56,52],"velocity":100},{"values":[52],"velocity":100},{"values":[61,57],"velocity":100},{"values":[61,57],"velocity":100},{"values":[52],"velocity":100},{"values":[61,57],"velocity":100},{"values":[61,57],"velocity":100},{"values":[61,57],"velocity":100},{"values":[62,59,57],"velocity":100},{"values":[64,61,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[59,56],"velocity":100},{"values":[61,57],"velocity":100},{"values":[62,59,52],"velocity":100},{"values":[68,62,52],"velocity":100},{"values":[71,68,52],"velocity":100},{"values":[69,66,52],"velocity":100},{"values":[68,64,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[66,62,52],"velocity":100},{"values":[64,61,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[62,59,52],"velocity":100},{"values":[68,62,52],"velocity":100},{"values":[71,68,52],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[78,74,50],"velocity":100},{"values":[76,73,49],"velocity":100},{"values":[74,71,59],"velocity":100},{"values":[73,69,57],"velocity":100},{"values":[71,68,56],"velocity":100},{"values":[70,56],"velocity":100},{"values":[71,56],"velocity":100},{"values":[73,56],"velocity":100},{"values":[74,56],"velocity":100},{"values":[76,71,52],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[66,57],"velocity":100},{"values":[65,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[64,57,50],"velocity":100},{"values":[62,54,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[71,66,50],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[67,64,49],"velocity":100},{"values":[71,67,49],"velocity":100},{"values":[69,64,49],"velocity":100},{"values":[69,64,49],"velocity":100},{"values":[64,61,49],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[71,66,50],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[64,61,52],"velocity":100},{"values":[73,52],"velocity":100},{"values":[62,59,52],"velocity":100},{"values":[71,52],"velocity":100},{"values":[61,57],"velocity":100},{"values":[69,61,57],"velocity":100},{"values":[68,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[71,67,57],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[67,64,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[64,57],"velocity":100},{"values":[62,57,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[66,62,57],"velocity":100},{"values":[65,62,57],"velocity":100},{"values":[66,62,50],"velocity":100},{"values":[71,66,57],"velocity":100},{"values":[69,66,50],"velocity":100},{"values":[69,62,54],"velocity":100},{"values":[66,62,54],"velocity":100},{"values":[68,64,52],"velocity":100},{"values":[78,74,52],"velocity":100},{"values":[76,52],"velocity":100},{"values":[76,69,50],"velocity":100},{"values":[74,50],"velocity":100},{"values":[73,67,55],"velocity":100},{"values":[71,67,55],"velocity":100},{"values":[69,64,57],"velocity":100},{"values":[67,64,57],"velocity":100},{"values":[66,61,57],"velocity":100},{"values":[64,61,57],"velocity":100},{"values":[62,57,50],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[74,69,50],"velocity":100}]},{"name":"荒野の果てに","events":[{"values":[69,65,53],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[72,69,53],"velocity":100},{"values":[72,67,48],"velocity":100},{"values":[70,67,48],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[67,64,48],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[72,69,53],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[67,64,48],"velocity":100},{"values":[65,60,53],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[72,69,53],"velocity":100},{"values":[72,69,50],"velocity":100},{"values":[70,67,48],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[67,62,55],"velocity":100},{"values":[69,65,50],"velocity":100},{"values":[72,67,48],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[67,62,55],"velocity":100},{"values":[65,60,53],"velocity":100},{"values":[72,69,53],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[72,69,50],"velocity":100},{"values":[70,65,53],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[70,67,55],"velocity":100},{"values":[72,67,48],"velocity":100},{"values":[70,67,48],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[67,64,48],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[70,65,58],"velocity":100},{"values":[69,65,58],"velocity":100},{"values":[67,62,55],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[67,64,48],"velocity":100},{"values":[60,57,50],"velocity":100},{"values":[60,55,48],"velocity":100},{"values":[65,60,53],"velocity":100},{"values":[67,64,48],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[70,65,58],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[67,64,48],"velocity":100},{"values":[72,69,53],"velocity":100},{"values":[74,69,50],"velocity":100},{"values":[72,69,50],"velocity":100},{"values":[70,65,53],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[70,67,55],"velocity":100},{"values":[72,67,48],"velocity":100},{"values":[70,67,48],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[67,64,48],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[70,65,58],"velocity":100},{"values":[69,65,58],"velocity":100},{"values":[67,62,55],"velocity":100},{"values":[65,62,50],"velocity":100},{"values":[67,64,48],"velocity":100},{"values":[60,57,50],"velocity":100},{"values":[60,55,48],"velocity":100},{"values":[65,60,53],"velocity":100},{"values":[67,64,48],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[70,65,58],"velocity":100},{"values":[69,65,53],"velocity":100},{"values":[67,64,48],"velocity":100},{"values":[65,60,53],"velocity":100}]}];</script>
 <script>
@@ -308,6 +403,9 @@ function step(n){
 
 /* ---------- 描画 ---------- */
 const cv=document.getElementById('roll'), g2=cv.getContext('2d');
+const cs=getComputedStyle(document.documentElement);
+const MONO=(cs.getPropertyValue('--mono')||'monospace').trim();
+const SANS=(cs.getPropertyValue('--sans')||'sans-serif').trim();
 let W=0,H=0,COL=30;
 const PLAY=.28;
 const still=matchMedia('(prefers-reduced-motion: reduce)');
@@ -412,27 +510,46 @@ function draw(ts){
 }
 function paint(dt){
   if(W<40||H<40){ fit(); return; }
-  const rh=rowH(), px=Math.round(W*PLAY), KEY=30;
+  const rh=rowH(), px=Math.round(W*PLAY), KEY=Math.round(Math.min(40,Math.max(28,W*.035)));
   scroll += still.matches ? (idx-scroll) : (idx-scroll)*.22;
   if(Math.abs(idx-scroll)<.002) scroll=idx;
 
   g2.clearRect(0,0,W,H);
 
+  // 黒鍵の行に薄い帯を敷き、オクターブの切れ目に線を引く
   for(let n=lo;n<=hi;n++){
-    if(BLACK.includes(n%12)){ g2.fillStyle='#1b2832'; g2.fillRect(KEY,yOf(n),W-KEY,rh); }
-    if(n%12===0){ g2.strokeStyle='#22313d'; g2.lineWidth=1; g2.beginPath(); g2.moveTo(KEY,yOf(n)+rh); g2.lineTo(W,yOf(n)+rh); g2.stroke(); }
-  }
-
-  for(let n=lo;n<=hi;n++){
-    const b=BLACK.includes(n%12);
-    g2.fillStyle=b?'#0f1820':'#cfdae2';
-    g2.fillRect(0,yOf(n)+.5,b?KEY*.62:KEY,rh-1);
-    if(n%12===0&&rh>9){
-      g2.fillStyle='#6b7c8a'; g2.font='9px system-ui'; g2.textBaseline='middle';
-      g2.fillText(nameOf(n),KEY-19,yOf(n)+rh/2);
+    if(BLACK.includes(n%12)){ g2.fillStyle='#1a2530'; g2.fillRect(KEY,yOf(n),W-KEY,rh); }
+    if(n%12===0){
+      g2.fillStyle='rgba(127,168,184,.13)';
+      g2.fillRect(KEY,Math.round(yOf(n)+rh)-.5,W-KEY,1);
     }
   }
-  g2.strokeStyle='#22313d'; g2.beginPath(); g2.moveTo(KEY+.5,0); g2.lineTo(KEY+.5,H); g2.stroke();
+
+  // 左端の鍵盤。白鍵を土台にして黒鍵を左寄りに重ねると実物の見え方になる。
+  // 行ごとに白鍵を描くと白が分断されて鍵盤に見えない。
+  const BK=Math.round(KEY*.62);
+  g2.fillStyle='#c5d0da'; g2.fillRect(0,0,KEY,H);
+  for(let n=lo;n<=hi;n++){
+    if(!BLACK.includes(n%12)) continue;
+    g2.fillStyle='#141a21';
+    g2.fillRect(0,yOf(n),BK,rh);
+  }
+  // 黒鍵が挟まらない白鍵どうし(E|F, B|C)の境目にだけ細い線を入れる
+  g2.fillStyle='rgba(20,26,33,.32)';
+  for(let n=lo;n<=hi;n++){
+    const m=n%12;
+    if(m===4||m===11) g2.fillRect(0,Math.round(yOf(n))-.5,KEY,1);
+  }
+  if(rh>9){
+    g2.font='500 9px '+MONO; g2.textBaseline='middle'; g2.textAlign='right';
+    for(let n=lo;n<=hi;n++){
+      if(n%12!==0) continue;
+      g2.fillStyle='#4a5560';
+      g2.fillText(nameOf(n),KEY-4,yOf(n)+rh/2);
+    }
+    g2.textAlign='left';
+  }
+  g2.fillStyle='rgba(0,0,0,.45)'; g2.fillRect(KEY,0,1,H);
 
   const from=Math.max(0,Math.floor(scroll-px/COL)-1), to=Math.min(song.events.length,Math.ceil(scroll+(W-px)/COL)+1);
   const cur=idx-1;
@@ -453,38 +570,85 @@ function paint(dt){
   }
   sparkIdx=-1;   // 画面に出ていない音でも印は消す。あとで急に弾けないように
 
-  g2.strokeStyle=idx>=song.events.length?'#3a4854':'#f5a524';
-  g2.lineWidth=2; g2.beginPath(); g2.moveTo(px,0); g2.lineTo(px,H); g2.stroke();
+  // 「いま」の線。動かないので、この曲を待たせているのはこの線だという印になる
+  const done=idx>=song.events.length;
+  if(!done){
+    const gl=g2.createLinearGradient(px-26,0,px+8,0);
+    gl.addColorStop(0,'rgba(245,165,36,0)');
+    gl.addColorStop(1,'rgba(245,165,36,.13)');
+    g2.fillStyle=gl; g2.fillRect(px-26,0,34,H);
+  }
+  g2.fillStyle=done?'#3a4854':'#f5a524';
+  g2.fillRect(px-1,0,2,H);
 
   drawSparks(dt);
 
-  if(idx>=song.events.length){
-    g2.fillStyle='rgba(15,24,32,.82)'; g2.fillRect(0,H/2-34,W,68);
-    g2.fillStyle='#e6edf2'; g2.font='600 19px system-ui'; g2.textAlign='center'; g2.textBaseline='middle';
-    g2.fillText('おわり',W/2,H/2-6);
-    g2.fillStyle='#8da0af'; g2.font='13px system-ui';
-    g2.fillText('「最初から」でもう一度',W/2,H/2+18);
+  if(done){
+    g2.fillStyle='rgba(19,19,26,.88)'; g2.fillRect(0,0,W,H);
+    g2.textAlign='center'; g2.textBaseline='middle';
+    g2.fillStyle='#e9edf2'; g2.font='600 21px '+SANS;
+    g2.fillText('おわりました',W/2,H/2-13);
+    g2.fillStyle='#8b93a2'; g2.font='13px '+SANS;
+    g2.fillText('「最初から」でもう一度',W/2,H/2+15);
+    g2.fillStyle='#f5a524';
+    g2.fillRect(W/2-14,H/2+38,28,2);
     g2.textAlign='left';
   }
 }
 
+const elCount=document.getElementById('count'), elNext=document.getElementById('next'),
+      elTitle=document.getElementById('title'), elCap=document.querySelector('.next .cap');
 function update(){
-  document.getElementById('count').innerHTML='<b>'+idx+'</b> / '+song.events.length;
-  const e=song.events[idx];
-  document.getElementById('hint').textContent =
-    idx>=song.events.length ? '演奏おわり' : '次の音　'+e.values.map(nameOf).join('  ');
+  elCount.innerHTML='<b>'+idx+'</b> / '+song.events.length;
+  elTitle.textContent=song.name;
+  const done=idx>=song.events.length;
+  elCap.textContent=done?'演奏':'次の音';
+  elNext.dataset.end=done?'1':'0';
+  if(done){ elNext.textContent='おわりました'; return; }
+  elNext.textContent='';
+  song.events[idx].values.forEach(function(v){
+    const sp=document.createElement('span'); sp.textContent=nameOf(v); elNext.appendChild(sp);
+  });
 }
+
+/* ---------- 曲と音色の引き出し ---------- */
+/* 演奏中に見えているのは譜面だけでよい。設定は必要なときだけ出す。
+   開いている間はスペースを演奏に渡さない。引き出しの中の操作に使うため。 */
+const panel=document.getElementById('panel'), scrim=document.getElementById('scrim'),
+      opener=document.getElementById('open');
+let panelOpen=false;
+function openPanel(){
+  panelOpen=true;
+  panel.dataset.open='1'; scrim.dataset.open='1';
+  opener.setAttribute('aria-expanded','true');
+  release(); if(ctx) allOff();
+  // 器そのものに移す。曲や音色のボタンに乗せると、スイッチ(スペース)を
+  // 押したときにそのボタンが実行されてしまう。Tab で中の操作には入れる。
+  if(panel.focus) panel.focus();
+}
+function shut(){
+  if(!panelOpen) return;
+  panelOpen=false;
+  panel.dataset.open='0'; scrim.dataset.open='0';
+  opener.setAttribute('aria-expanded','false');
+  if(cv.focus) cv.focus();      // 閉じたらすぐ演奏に戻れるようにする
+}
+opener.onclick=()=>panelOpen?shut():openPanel();
+document.getElementById('close').onclick=shut;
+scrim.onclick=shut;
+addEventListener('keydown',ev=>{ if(ev.key==='Escape'&&panelOpen){ ev.preventDefault(); shut(); } });
 
 /* ---------- 入力 ---------- */
 const isGo=ev=>ev.code==='Space'||ev.code==='Enter'||ev.key===' '||ev.key==='Spacebar'||ev.key==='Enter';
 addEventListener('keydown',ev=>{
   if(!isGo(ev)) return;
+  if(panelOpen) return;
   if(ev.target.tagName==='BUTTON'||ev.target.tagName==='INPUT'||ev.target.tagName==='LABEL') return;
   ev.preventDefault(); if(ev.repeat) return; press();
 });
 addEventListener('keyup',ev=>{ if(isGo(ev)) release(); });
 
-const go=ev=>{ if(ev.cancelable) ev.preventDefault(); if(cv.focus) cv.focus(); press(); };
+const go=ev=>{ if(panelOpen) return; if(ev.cancelable) ev.preventDefault(); if(cv.focus) cv.focus(); press(); };
 if(window.PointerEvent){
   cv.addEventListener('pointerdown',go);
   addEventListener('pointerup',release);
@@ -502,7 +666,7 @@ if(window.PointerEvent){
 // 支援者がマウスで「1つ戻す」を押し、本人がスイッチで続ける場面で効く。
 // キーボードから起動したとき(ev.detail===0)はタブ移動を壊さないので触らない。
 document.addEventListener('click',ev=>{
-  if(!ev.detail) return;
+  if(!ev.detail||panelOpen) return;   // 引き出しの操作中は奪わない
   const t=ev.target;
   const b=(t&&t.closest)?t.closest('button'):null;
   if(b&&cv.focus) cv.focus();
@@ -520,9 +684,10 @@ const list=document.getElementById('songs');
 function addSong(s){
   const b=document.createElement('button');
   b.className='song'; b.dataset.name=s.name;
-  b.innerHTML='<b></b><i>'+s.events.length+' タップ</i>';
-  b.querySelector('b').textContent=s.name;
-  b.onclick=()=>load(s);
+  b.innerHTML='<span class="nm"></span><span class="taps">'+s.events.length+'</span>';
+  b.querySelector('.nm').textContent=s.name;
+  // 曲を選ぶのは決めの操作なので、選んだら閉じて演奏に戻す
+  b.onclick=()=>{ load(s); shut(); };
   list.appendChild(b);
 }
 SONGS.forEach(addSong);
@@ -531,7 +696,7 @@ const tw=document.getElementById('tones');
 Object.entries(TONES).forEach(([k,v])=>{
   const b=document.createElement('button');
   b.className='tone'; b.textContent=v.label; b.setAttribute('aria-pressed',String(k===tone));
-  b.onclick=()=>setTone(k);
+  b.onclick=()=>setTone(k);   // 聴き比べられるよう引き出しは開いたままにする
   tw.appendChild(b);
 });
 function setTone(k){
@@ -543,7 +708,7 @@ function setTone(k){
 
 /* 音源の切替。SoundFont は選ばれた音色の分だけその場で読み込む。
    読めなければ合成音のまま鳴らし続ける(音が出ないより音質が落ちるほうが良い)。 */
-const sfmsg=document.getElementById('sfmsg');
+const sfmsg=document.getElementById('sfmsg'), elAlert=document.getElementById('alert');
 function ensureSF(){ SF.load(tone,sfStatus); pickEngine(); sfStatus(); }
 function sfStatus(){
   pickEngine();
@@ -552,6 +717,9 @@ function sfStatus(){
   if(SF.state[tone]==='loading') t=TONES[tone].label+'の音を読み込んでいます。それまでは簡易な音で鳴ります。';
   else if(SF.state[tone]!=='ready'){ t=(SF.msg[tone]||'音を読み込めませんでした')+' 簡易な音で鳴らします。'; bad='1'; }
   sfmsg.textContent=t; sfmsg.dataset.bad=bad;
+  // 引き出しが閉じていても失敗に気づけるようにする(仕様書 8 章)
+  elAlert.textContent=bad==='1'?'音を読み込めませんでした':'';
+  elAlert.dataset.on=bad;
 }
 
 document.getElementById('back').onclick=()=>step(-1);
@@ -564,9 +732,10 @@ document.getElementById('file').onchange=ev=>{
       const d=JSON.parse(r.result);
       if(!Array.isArray(d)||!d.length||!Array.isArray(d[0].values)) throw 0;
       const s={name:f.name.replace(/\.json$/i,''),events:d.filter(e=>Array.isArray(e.values)&&e.values.length)};
-      SONGS.push(s); addSong(s); load(s);
+      SONGS.push(s); addSong(s); load(s); sfStatus(); shut();
     }catch(e){
-      document.getElementById('hint').textContent='このファイルは読み込めません。タップ演奏データのJSONを選んでください。';
+      sfmsg.textContent='このファイルは読み込めません。タップ演奏データのJSONを選んでください。';
+      sfmsg.dataset.bad='1';
     }
   };
   r.readAsText(f);
