@@ -16,9 +16,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 動作確認
 
 ```sh
-open "プロトタイプ.html"          # 現行版は file:// で開くだけで動く
-python3 -m http.server 8000             # 分割後は fetch を使うため静的サーバが必要
+open index.html                  # file:// でも動く(SoundFont だけは合成音に落ちる)
+python3 -m http.server 8000      # sf/ を読ませるにはこちら
+python3 tools/build-sf.py        # sf/*.js を作り直す(通常は不要)
 ```
+
+公開先は https://yamaguchitoshi.github.io/dt-player/ (main ブランチのルート)。
 
 自動テストはない。検証は iPad Safari 実機で「音が鳴る / ピアノロールが出る / 押し続けて音が伸びる」を確認する。仕様書 6 章の各段階ごとに実機確認する運用。
 
@@ -26,8 +29,8 @@ python3 -m http.server 8000             # 分割後は fetch を使うため静�
 
 単一 HTML の中は5つの層に分かれており、仕様書 5 章はこの境界でファイル分割する計画になっている。
 
-- **音源** `TONES` テーブル + `audio()` / `noteOn()` / `allOff()` → `js/synth.js`
-  Web Audio の生成合成。音色は `{osc, parts, a, d, r, cut, gain}` で定義。ノートごとに gain + lowpass を作り `live[]` に積む。`allOff()` が `live[]` を全部リリースして空にする
+- **音源** `Synth` / `SF` の2実装 + `audio()` / `noteOn()` / `allOff()` → `js/synth.js`
+  下の「音源の2実装」を参照。ノートごとに gain を作り `live[]` に `{g, nodes}` で積む。`allOff()` が `live[]` を全部リリースして空にする
 - **状態** `song` / `idx` / `scroll` / `lo,hi` / `held` → `js/app.js`
 - **演奏** `press()` / `release()` / `step()` → `js/player.js`
 - **描画** `fit()` / `draw()` / `paint()` → `js/roll.js`
@@ -40,6 +43,31 @@ python3 -m http.server 8000             # 分割後は fetch を使うため静�
 - `release()` は減衰音色（`d>0`、ピアノ）では何もしない。持続音色だけが離鍵で止まる
 - `scroll` は `idx` へ補間で追従する値（`prefers-reduced-motion` 時は即座に代入）。`idx` とは別物
 - `held` フラグと `ev.repeat` 無視でキーリピートによる多重進行を防ぐ
+
+### 音源の2実装
+
+`Synth`(合成音)と `SF`(SoundFont)が同じ約束を実装している。**この約束を崩さないこと。**
+
+| メンバ | 意味 |
+|---|---|
+| `noteOn(midi, vel)` | 1音鳴らして `live[]` に積む |
+| `decays(音色)` | 押しっぱなしでも減衰する音色か。`release()` の分岐に使う |
+| `rel(音色)` | 離してから消えるまでの秒数。`allOff()` が使う |
+
+状態は2つに分かれている。混同しないこと。
+
+- `wantSF` — 利用者が選んだ音源。UI のボタンが持つ希望
+- `engine` — いま実際に鳴らしている実装。`pickEngine()` が `wantSF && SF.ready(tone)` で決める
+
+この分離が**フォールバックの本体**。SoundFont の読み込みに失敗しても `wantSF` は真のまま、`engine` だけが `Synth` に落ちる。利用者の選択を勝手に戻さず、理由を `#sfmsg` に出したうえで鳴らし続ける(仕様書 6 章「音が出ないより音質が落ちるほうが良い」)。
+
+`SF` は音色を選んだ時点で `sf/<音色>.js` を `<script>` で読み込む(`fetch` ではないので `file://` でも CORS に当たらない)。中身は base64 の MP3 で、`decodeAudioData` に通してから `AudioBufferSourceNode` の `loop` / `loopStart` / `loopEnd` で伸ばす。**ループ情報があることが SoundFont を採用した理由**なので、ループを切る変更をしてはいけない。減衰音色(ピアノ)はループさせたまま包絡線のほうを落とす。サンプルが尽きて不自然に切れるのを避けるため。
+
+### sf/ の中身は生成物
+
+`sf/*.js` は `tools/build-sf.py` の出力。**手で編集しない。** WebAudioFont の音色データ(MIT)から MIDI 48〜84 のゾーンだけを抜き、3半音ごとに間引いてある。中間の音は `playbackRate` で補う。取得元はスクリプト内でコミットに固定してある。
+
+ライセンスは `sf/LICENSE` にまとめてある。要点は、FluidR3(MIT, Frank Wen)が**派生音源に著作権表示を含めることを求めている**こと。`sf/*.js` の先頭にも同じ表示が入っているので消さない。WebAudioFont の再生エンジンは GPL-3.0 なので**取り込んでいない**。再生は `SF` が自前でやっている。
 
 ### 連携先の iPad アプリ データ形式
 
@@ -56,6 +84,7 @@ python3 -m http.server 8000             # 分割後は fetch を使うため静�
 - **`draw()` の try/catch** — 描画例外で白画面にせず、画面にエラー文を出す
 - **ジェスチャ抑制** — `dblclick` / `contextmenu` / `gesturestart` の preventDefault、`touch-action:none`
 - **入力判定は `ev.code` と `ev.key` の両方** — `ev.code` が空になる Bluetooth スイッチ対策
+- **ボタンを押したあと譜面に焦点を戻す処理** — Chrome はボタンをクリックするとフォーカスが残る。残ったままだと次のスペース入力がボタンの再実行に吸われ、演奏が進まない。支援者がマウスで「1つ戻す」を押し、本人がスイッチで続ける場面で壊れる。`ev.detail` が 0 のとき(キーボードからの起動)は触らないので、タブ移動は壊れない
 
 ## 設計上の前提（機能ではなく制約）
 

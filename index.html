@@ -44,6 +44,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;
 .tones{display:flex;gap:6px;padding:0 20px}
 .tone{flex:1;padding:7px 0;font-size:12.5px;text-align:center;border:1px solid var(--line);border-radius:3px;color:var(--mute)}
 .tone[aria-pressed="true"]{border-color:var(--now);color:var(--ink)}
+.sfmsg{margin:7px 20px 0;font-size:11.5px;line-height:1.5;color:var(--mute);min-height:1em}
+.sfmsg[data-bad="1"]{color:var(--now)}
 .file{margin:0 20px;font-size:12.5px;color:var(--mute);border:1px dashed var(--line);border-radius:3px;padding:9px 11px;cursor:pointer;display:block}
 .file:hover{color:var(--ink)}
 .file input{display:none}
@@ -84,6 +86,11 @@ footer button:hover{color:var(--ink);border-color:var(--soon)}
     <div class="tones" id="tones"></div>
   </div>
   <div class="group">
+    <p class="label">音源</p>
+    <div class="tones" id="engines"></div>
+    <p class="sfmsg" id="sfmsg"></p>
+  </div>
+  <div class="group">
     <p class="label">自分で作ったデータ</p>
     <label class="file">JSONファイルを選ぶ<input type="file" id="file" accept=".json,application/json,text/json,text/plain"></label>
   </div>
@@ -107,6 +114,12 @@ const BLACK=[1,3,6,8,10];
 const nameOf=n=>NAMES[n%12]+(Math.floor(n/12)-1);
 
 /* ---------- 音 ---------- */
+/* 音源は2実装ある。共通の約束は3つだけ。
+     noteOn(midi, velocity)  1音鳴らす
+     decays(音色)            押しっぱなしでも減衰する音色か
+     rel(音色)               離してから消えるまでの秒数
+   減衰しない音色は離すまで伸ばす。これはこのアプリの表現の核なので、
+   どちらの実装でも崩さない(仕様書 8 章)。 */
 const TONES={
   organ:{label:'オルガン',osc:'sine',parts:[[1,1],[2,.45],[4,.2]],a:.012,d:0,r:.14,cut:4200,gain:.85},
   piano:{label:'ピアノ',osc:'triangle',parts:[[1,1],[2,.3]],a:.004,d:1.8,r:.18,cut:5200,gain:1},
@@ -127,29 +140,120 @@ function audio(){
   if(ctx.state!=='running'&&ctx.resume) ctx.resume();
   return ctx;
 }
-function noteOn(midi,vel){
-  const T=TONES[tone], t=ctx.currentTime, f=440*Math.pow(2,(midi-69)/12);
-  const g=ctx.createGain(), lp=ctx.createBiquadFilter();
-  lp.type='lowpass'; lp.frequency.value=T.cut;
-  g.connect(lp); lp.connect(master);
-  const peak=T.gain*Math.max(.15,vel/127);
-  g.gain.setValueAtTime(.0001,t);
-  g.gain.linearRampToValueAtTime(peak,t+T.a);
-  if(T.d>0) g.gain.exponentialRampToValueAtTime(.0006,t+T.a+T.d);
-  const oscs=T.parts.map(([m,amp])=>{
-    const o=ctx.createOscillator(), og=ctx.createGain();
-    o.type=T.osc; o.frequency.value=f*m; og.gain.value=amp;
-    o.connect(og); og.connect(g); o.start(t); return o;
-  });
-  live.push({g,oscs});
-}
+
+/* 合成音(既定。読み込むものがなく必ず鳴る) */
+const Synth={
+  decays:function(t){return TONES[t].d>0},
+  rel:function(t){return TONES[t].r},
+  noteOn:function(midi,vel){
+    const T=TONES[tone], t=ctx.currentTime, f=440*Math.pow(2,(midi-69)/12);
+    const g=ctx.createGain(), lp=ctx.createBiquadFilter();
+    lp.type='lowpass'; lp.frequency.value=T.cut;
+    g.connect(lp); lp.connect(master);
+    const peak=T.gain*Math.max(.15,vel/127);
+    g.gain.setValueAtTime(.0001,t);
+    g.gain.linearRampToValueAtTime(peak,t+T.a);
+    if(T.d>0) g.gain.exponentialRampToValueAtTime(.0006,t+T.a+T.d);
+    const nodes=T.parts.map(function(p){
+      const o=ctx.createOscillator(), og=ctx.createGain();
+      o.type=T.osc; o.frequency.value=f*p[0]; og.gain.value=p[1];
+      o.connect(og); og.connect(g); o.start(t); return o;
+    });
+    live.push({g:g,nodes:nodes});
+  }
+};
+
+/* SoundFont。sf/<音色>.js が DTSF.add() で自分を渡してくる。
+   base64 の MP3 を decodeAudioData に通し、ループ点で伸ばす。
+   ループ情報があるから押している間ずっと鳴らせる(仕様書 6 章)。 */
+const DTSF={raw:{},add:function(id,d){this.raw[id]=d}};
+window.DTSF=DTSF;
+
+const SF={
+  banks:{}, state:{}, msg:{}, A:.012,
+  ready:function(t){return this.state[t]==='ready'},
+  decays:function(t){const b=this.banks[t]; return b?b.decay:TONES[t].d>0},
+  rel:function(t){return this.decays(t)?TONES[t].r:.22},
+  noteOn:function(midi,vel){
+    const b=this.banks[tone];
+    if(!b){Synth.noteOn(midi,vel);return}          // 念のための保険
+    let z=b.zones[0];
+    for(let i=1;i<b.zones.length;i++){
+      if(Math.abs(b.zones[i].pitch-midi)<Math.abs(z.pitch-midi)) z=b.zones[i];
+    }
+    const t=ctx.currentTime, g=ctx.createGain(), src=ctx.createBufferSource();
+    src.buffer=z.buf;
+    src.playbackRate.value=Math.pow(2,(midi-z.pitch)/12);   // 間引いた分をここで補う
+    if(z.looped){ src.loop=true; src.loopStart=z.ls; src.loopEnd=z.le; }
+    const peak=Math.max(.15,vel/127);
+    g.gain.setValueAtTime(.0001,t);
+    g.gain.linearRampToValueAtTime(peak,t+this.A);
+    if(b.decay){
+      // 減衰音色はループで途切れさせず、包絡線のほうを落とす
+      const d=TONES[tone].d||1.8;
+      g.gain.exponentialRampToValueAtTime(.0006,t+this.A+d);
+      try{src.stop(t+this.A+d+.2)}catch(e){}
+    }
+    src.connect(g); g.connect(master); src.start(t);
+    live.push({g:g,nodes:[src]});
+  },
+  load:function(t,done){
+    const self=this;
+    if(self.state[t]==='ready'){done();return}
+    if(self.state[t]==='loading') return;
+    self.state[t]='loading'; self.msg[t]=''; done();
+
+    const finish=function(ok,m){ self.state[t]=ok?'ready':'error'; self.msg[t]=m||''; done(); };
+
+    const build=function(){
+      const d=DTSF.raw[t];
+      if(!d||!d.zones||!d.zones.length){finish(false,'音色データが空です');return}
+      const out=[]; let left=d.zones.length;
+      const settle=function(){ if(--left) return;
+        const good=out.filter(function(z){return z});
+        if(!good.length){finish(false,'音声を復号できません');return}
+        good.sort(function(a,b){return a.pitch-b.pitch});
+        self.banks[t]={decay:!!d.decay,zones:good};
+        finish(true);
+      };
+      d.zones.forEach(function(z,i){
+        let bytes, done1=false;
+        const ok=function(buf){ if(done1)return; done1=true;
+          out[i]={pitch:z.pitch,ls:z.loopStart,le:z.loopEnd,looped:!!z.looped,buf:buf}; settle(); };
+        const ng=function(){ if(done1)return; done1=true; settle(); };
+        try{
+          const bin=atob(z.file); bytes=new Uint8Array(bin.length);
+          for(let k=0;k<bin.length;k++) bytes[k]=bin.charCodeAt(k);
+        }catch(e){ ng(); return; }
+        try{
+          const pr=ctx.decodeAudioData(bytes.buffer,ok,ng);
+          if(pr&&pr.then) pr.then(ok,ng);   // 新しい Safari は Promise も返す
+        }catch(e){ ng(); }
+      });
+    };
+
+    if(DTSF.raw[t]){build();return}
+    const sc=document.createElement('script');
+    sc.src='sf/'+t+'.js';
+    sc.onload=build;
+    sc.onerror=function(){finish(false,'sf/'+t+'.js を読み込めません')};
+    document.head.appendChild(sc);
+  }
+};
+
+let wantSF=false;           // 利用者が選んだ音源
+let engine=Synth;           // いま実際に鳴っている音源
+
+function pickEngine(){ engine=(wantSF&&SF.ready(tone))?SF:Synth; }
+function noteOn(midi,vel){ engine.noteOn(midi,vel); }
+
 function allOff(){
-  const t=ctx?ctx.currentTime:0, r=TONES[tone].r;
-  live.forEach(({g,oscs})=>{
-    g.gain.cancelScheduledValues(t);
-    g.gain.setValueAtTime(Math.max(g.gain.value,.0001),t);
-    g.gain.exponentialRampToValueAtTime(.0004,t+r);
-    oscs.forEach(o=>o.stop(t+r+.05));
+  const t=ctx?ctx.currentTime:0, r=engine.rel(tone);
+  live.forEach(function(v){
+    v.g.gain.cancelScheduledValues(t);
+    v.g.gain.setValueAtTime(Math.max(v.g.gain.value,.0001),t);
+    v.g.gain.exponentialRampToValueAtTime(.0004,t+r);
+    v.nodes.forEach(function(n){ try{n.stop(t+r+.05)}catch(e){} });
   });
   live=[];
 }
@@ -182,7 +286,7 @@ function press(){
 }
 function release(){
   if(!held) return; held=false;
-  if(TONES[tone].d===0) allOff();
+  if(!engine.decays(tone)) allOff();
 }
 function step(n){
   idx=Math.max(0,Math.min(song.events.length,idx+n));
@@ -304,6 +408,18 @@ if(window.PointerEvent){
   cv.addEventListener('mousedown',go);
   addEventListener('mouseup',release);
 }
+// マウスやタップでボタンを押したあとは譜面に焦点を戻す。
+// 戻さないとボタンにフォーカスが残り、次のスペース入力がボタンの再実行に
+// 吸われて演奏が進まない(Chrome で再現。Safari はボタンに焦点が残らない)。
+// 支援者がマウスで「1つ戻す」を押し、本人がスイッチで続ける場面で効く。
+// キーボードから起動したとき(ev.detail===0)はタブ移動を壊さないので触らない。
+document.addEventListener('click',ev=>{
+  if(!ev.detail) return;
+  const t=ev.target;
+  const b=(t&&t.closest)?t.closest('button'):null;
+  if(b&&cv.focus) cv.focus();
+});
+
 // iPadOSの二本指ダブルタップ拡大や長押しメニューを抑える
 cv.addEventListener('dblclick',ev=>ev.preventDefault());
 cv.addEventListener('contextmenu',ev=>ev.preventDefault());
@@ -327,9 +443,40 @@ const tw=document.getElementById('tones');
 Object.entries(TONES).forEach(([k,v])=>{
   const b=document.createElement('button');
   b.className='tone'; b.textContent=v.label; b.setAttribute('aria-pressed',String(k===tone));
-  b.onclick=()=>{ if(ctx) allOff(); tone=k; [...tw.children].forEach((c,i)=>c.setAttribute('aria-pressed',String(Object.keys(TONES)[i]===k))); };
+  b.onclick=()=>setTone(k);
   tw.appendChild(b);
 });
+function setTone(k){
+  if(ctx) allOff();
+  tone=k;
+  [...tw.children].forEach((c,i)=>c.setAttribute('aria-pressed',String(Object.keys(TONES)[i]===k)));
+  ensureSF();
+}
+
+/* 音源の切替。SoundFont は選ばれた音色の分だけその場で読み込む。
+   読めなければ合成音のまま鳴らし続ける(音が出ないより音質が落ちるほうが良い)。 */
+const ew=document.getElementById('engines'), sfmsg=document.getElementById('sfmsg');
+[['synth','合成音'],['sf','SoundFont']].forEach(([k,label])=>{
+  const b=document.createElement('button');
+  b.className='tone'; b.textContent=label; b.dataset.engine=k;
+  b.setAttribute('aria-pressed',String((k==='sf')===wantSF));
+  b.onclick=()=>{ wantSF=(k==='sf'); if(ctx) allOff(); ensureSF(); };
+  ew.appendChild(b);
+});
+function ensureSF(){
+  [...ew.children].forEach(c=>c.setAttribute('aria-pressed',String((c.dataset.engine==='sf')===wantSF)));
+  if(wantSF){ audio(); SF.load(tone,sfStatus); }
+  pickEngine(); sfStatus();
+}
+function sfStatus(){
+  pickEngine();
+  let t='', bad='0';
+  if(!wantSF) t='合成音で鳴らします。読み込みを待たずにすぐ鳴ります。';
+  else if(SF.state[tone]==='loading') t=TONES[tone].label+'の音を読み込んでいます…';
+  else if(SF.state[tone]==='ready') t=TONES[tone].label+'は SoundFont で鳴ります。';
+  else { t=(SF.msg[tone]||'音を読み込めませんでした')+' 合成音で鳴らします。'; bad='1'; }
+  sfmsg.textContent=t; sfmsg.dataset.bad=bad;
+}
 
 document.getElementById('back').onclick=()=>step(-1);
 document.getElementById('reset').onclick=()=>{idx=0; if(ctx)allOff(); update()};
@@ -349,5 +496,5 @@ document.getElementById('file').onchange=ev=>{
   r.readAsText(f);
 };
 
-fit(); load(SONGS[0]); draw();
+fit(); load(SONGS[0]); sfStatus(); draw();
 </script>

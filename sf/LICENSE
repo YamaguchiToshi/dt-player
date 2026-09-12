@@ -1,0 +1,72 @@
+sf/ に置いた音色データのライセンスと帰属表示
+=============================================
+
+sf/*.js は tools/build-sf.py が生成したもので、下記の素材から dt-player が
+必要とする音域(MIDI 48〜84)のサンプルだけを抜き出し、2〜3半音ごとに間引いた
+派生物にあたる。中間の音は再生時に playbackRate で補う。
+
+
+1. WebAudioFont の音色データ
+----------------------------
+
+  https://github.com/surikov/webaudiofontdata
+  MIT License / Copyright (c) 2017 Srgy Surkv
+
+  MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+
+2. 元になったサウンドフォント FluidR3 GM
+----------------------------------------
+
+  Fluid (R3) SoundFont
+  Copyright (c) 2000-2002, 2008 Frank Wen <getfrank@gmail.com>
+  MIT License
+
+  "I hereby release Fluid under the MIT license, as described in COPYING."
+
+  FluidR3 のライセンスは、派生音源を配布する場合に上記の謝辞と著作権表示を
+  含めることを求めている("The acknowledgements and copyright notices above
+  must be included in any derivative work.")。sf/*.js は派生音源にあたるため、
+  各ファイルの先頭にも同じ表示を入れている。
+
+  Fluid の制作にあたって協力した人々(原典の README より):
+    Suren M. Seron / Scott Hanan / Steve Aupperle / Chris Gillman /
+    Alex Taubr / Chris Prola / Andrew Klenk / Winfried Hubbe / Dylan /
+    Tim / Gort / Uros Katic / Ethan Winer
+
+
+3. 取り込んでいないもの
+-----------------------
+
+  WebAudioFont の再生エンジン(surikov/webaudiofont の WebAudioFontPlayer.js)は
+  GPL-3.0 であり、本プロジェクトには含めていない。サンプルの再生は index.html
+  内の SoundFont エンジンが自前でおこなっている。
+
+  出自が文書化されていない音色バンク(Chaos / SBLive / SoundBlasterOld /
+  Aspirin / JCLive)は、学校で配布する可能性を考えて採用していない。
+
+
+4. 収録した音色
+---------------
+
+  organ    Church Organ       FluidR3_GM 0190
+  piano    Acoustic Grand     FluidR3_GM 0000
+  strings  String Ensemble 1  FluidR3_GM 0480
