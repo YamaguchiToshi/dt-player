@@ -6,7 +6,7 @@ sf/ に書き出す。プレイヤー側のコード(GPL-3.0)は取り込まな�
 内の SoundFont エンジンが自前でおこなう。
 
 削減の方針は仕様書 6 章「第3段階」に従う。
-  - 連携先の iPad アプリ の音域は MIDI 48〜84 なので、その外のゾーンは落とす
+  - タップ演奏データの音域は MIDI 48〜84 なので、その外のゾーンは落とす
   - 残ったゾーンを 2〜3 半音ごとに間引き、中間の音は playbackRate でずらす
 
     python3 tools/build-sf.py
@@ -23,7 +23,7 @@ import urllib.request
 COMMIT = "23ca907d4370a04fd89ca483a92915e4d6159ab9"
 BASE = "https://raw.githubusercontent.com/surikov/webaudiofontdata/" + COMMIT + "/sound/"
 
-LO, HI = 48, 84  # 連携先の iPad アプリ の音域(C3〜C6)
+LO, HI = 48, 84  # タップ演奏データの音域(C3〜C6)
 
 # id, 元ファイル, 表示名, 間引きの最小間隔(半音), 減衰音かどうか
 INSTRUMENTS = [

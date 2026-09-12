@@ -181,7 +181,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;
   <button class="close" id="close" aria-label="閉じる">✕</button>
   <div class="brand">
     <p class="mark">dt-player</p>
-    <p class="note">連携先の iPad アプリ の演奏データをブラウザで鳴らします。<br>開発元の非公式ツールです。</p>
+    <p class="note">iPad のユニバーサル楽器アプリ用の演奏データを、ブラウザで鳴らします。<br>開発元の非公式ツールです。</p>
   </div>
   <div class="sec">
     <p class="cap"><span>曲</span><span>タップ数</span></p>
@@ -734,7 +734,7 @@ document.getElementById('file').onchange=ev=>{
       const s={name:f.name.replace(/\.json$/i,''),events:d.filter(e=>Array.isArray(e.values)&&e.values.length)};
       SONGS.push(s); addSong(s); load(s); sfStatus(); shut();
     }catch(e){
-      sfmsg.textContent='このファイルは読み込めません。タップ演奏データのJSONを選んでください。';
+      sfmsg.textContent='このファイルは読み込めません。タップ演奏データの JSON を選んでください。';
       sfmsg.dataset.bad='1';
     }
   };
