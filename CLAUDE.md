@@ -21,11 +21,14 @@ UI に由来や関係を説明する文章は置かない。名前だけを出�
 ビルドツール・パッケージマネージャ・テストランナーは一切ない。素の HTML/CSS/JS を GitHub Pages で配信する前提。
 
 ```
-index.html            本体。CSS・JS・全曲データを内包した単一ファイル
-sf/*.js               音色データ(生成物)。sf/LICENSE に帰属表示
-tools/build-sf.py     sf/*.js を作り直すスクリプト
-docs/license-nc891.png ラデツキー行進曲の素材ライセンスの控え
-dt-player-仕様書.md    作業の一次情報源
+index.html              UI・演奏・描画。CSS と JS を内包した単一ファイル
+data/songs.json         曲の一覧(メタ情報 + ファイル名)
+data/songs/*.json       曲の本体。素のイベント配列
+sf/*.js                 音色データ(生成物)。sf/LICENSE に帰属表示
+tools/build-sf.py       sf/*.js を作り直す
+tools/check-songs.py    data/ の整合を検証する
+docs/license-nc891.png  ラデツキー行進曲の素材ライセンスの控え
+dt-player-仕様書.md      作業の一次情報源
 ```
 
 `dt-player-仕様書.md` が**一次情報源**。背景・データ形式の制約・実機で直した箇所の理由・作業段階・守るべき設計判断が書いてある。実装に入る前に必ず読む。
@@ -36,7 +39,10 @@ dt-player-仕様書.md    作業の一次情報源
 open index.html                  # file:// でも動く(SoundFont だけは合成音に落ちる)
 python3 -m http.server 8000      # sf/ を読ませるにはこちら
 python3 tools/build-sf.py        # sf/*.js を作り直す(通常は不要)
+python3 tools/check-songs.py     # data/ の整合を検証。--fix でキャッシュを直す
 ```
+
+**`open index.html` では曲が読めない。** 曲データは `fetch` で取るので `file://` では動かない(理由を画面に出して止まる)。曲を触るときは必ず簡易サーバ越しに見ること。
 
 公開先は https://yamaguchitoshi.github.io/dt-player/ (main ブランチのルート)。
 
@@ -114,6 +120,21 @@ python3 tools/build-sf.py        # sf/*.js を作り直す(通常は不要)
 **押している間だけ音が伸びるという約束は変えていない。** 直接音は離した時点で止まり、鳴り続けるのは部屋のほうだけ。ここを混同して「離しても音が伸びる」実装にしないこと。
 
 響きの量を変えるときは必ず `setWet()` を通す。`wetGain.gain.value` に直接入れると、予約済みの変化が残っているとき無視される。
+
+### 曲データは外に出してある
+
+`data/songs.json`(一覧)と `data/songs/*.json`(本体)に分かれている。HTML には曲データを埋めない。理由は2つ(仕様書 5 章)。
+
+- 曲を足すときに HTML を触らずに済む
+- **個別ファイルをそのまま iPad アプリ用に保存できる**
+
+後者があるので、本体は**余計な入れ物を被せない素のイベント配列**にしてある。`{"songs":[...]}` のような包みを付けると iPad アプリが読めなくなる。引き出しの各行にある ↓ はこのファイルを直接指している。
+
+一覧の `taps` と `range` は表示用のキャッシュ。実データと食い違ったら実データが正。`tools/check-songs.py` で検出できる。
+
+読み込みは選ばれた曲の分だけ。取得済みは `Songs.cache` に残す。失敗しても黙って止まらず、譜面の場所に理由を出して「再試行」を出す。`file://` は fetch する前に断って、すぐ理由を見せる(投げても必ず失敗し、ブラウザが余計な警告も出すため)。
+
+曲を足す手順は `data/songs/<id>.json` を置いて `data/songs.json` に1行足すだけ。`index.html` は触らない。
 
 ### 弾けるエフェクト
 

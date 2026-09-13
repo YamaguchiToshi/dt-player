@@ -1,0 +1,100 @@
+{
+  "songs": [
+    {
+      "id": "kirakira-boshi",
+      "title": "きらきら星",
+      "file": "songs/kirakira-boshi.json",
+      "taps": 42,
+      "range": [
+        48,
+        81
+      ],
+      "note": "ハ長調。旋律+伴奏2音",
+      "source": "伝承曲(パブリックドメイン)"
+    },
+    {
+      "id": "turkish-march",
+      "title": "トルコ行進曲",
+      "file": "songs/turkish-march.json",
+      "taps": 112,
+      "range": [
+        48,
+        84
+      ],
+      "note": "モーツァルト K.331 第3楽章、主題24小節",
+      "source": "piano-midi.de 由来の MIDI の右手最上声と照合"
+    },
+    {
+      "id": "jupiter",
+      "title": "木星",
+      "file": "songs/jupiter.json",
+      "taps": 89,
+      "range": [
+        48,
+        79
+      ],
+      "note": "ホルスト「Thaxted」。旋律+内声+低音",
+      "source": "Hymnary.org でパブリックドメインとして公開されている MusicXML"
+    },
+    {
+      "id": "jupiter-octave",
+      "title": "木星 オクターブ版",
+      "file": "songs/jupiter-octave.json",
+      "taps": 89,
+      "range": [
+        48,
+        79
+      ],
+      "note": "旋律をオクターブで重ねた厚い響き",
+      "source": "Hymnary.org でパブリックドメインとして公開されている MusicXML"
+    },
+    {
+      "id": "radetzky-short",
+      "title": "ラデツキー行進曲 ショート版",
+      "file": "songs/radetzky-short.json",
+      "taps": 98,
+      "range": [
+        49,
+        78
+      ],
+      "note": "序奏+主部のみ",
+      "source": "ニコニ・コモンズ nc891 (nano_001) の MIDI から抽出"
+    },
+    {
+      "id": "radetzky-full",
+      "title": "ラデツキー行進曲 完全版",
+      "file": "songs/radetzky-full.json",
+      "taps": 549,
+      "range": [
+        49,
+        79
+      ],
+      "note": "序奏・主部・中間部・トリオ・終止",
+      "source": "ニコニ・コモンズ nc891 (nano_001) の MIDI から抽出"
+    },
+    {
+      "id": "gloria",
+      "title": "荒野の果てに",
+      "file": "songs/gloria.json",
+      "taps": 77,
+      "range": [
+        48,
+        74
+      ],
+      "note": "GLORIA(仏キャロル)。1番+リフレイン",
+      "source": "Hymnary.org でパブリックドメインとして公開されている MusicXML"
+    },
+    {
+      "id": "joy-to-the-world",
+      "title": "Joy to the World",
+      "file": "songs/joy-to-the-world.json",
+      "taps": 57,
+      "range": [
+        50,
+        74
+      ],
+      "note": "ANTIOCH。ニ長調。1番のみ(前奏は省く)",
+      "source": "Open Hymnal Project (2005 Revision) の楽譜と MIDI"
+    }
+  ]
+}
