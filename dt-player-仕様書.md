@@ -99,7 +99,7 @@ dt-player はその周辺ツール。目的は2つ。
 
 ## 4. 収録データ
 
-プロトタイプに埋め込み済みの7ファイル。全て著作権の保護期間が終了した楽曲。
+埋め込み済みの8ファイル。全て著作権の保護期間が終了した楽曲。
 
 | 曲名 | タップ数 | 音域 | 備考 |
 |---|---|---|---|
@@ -110,6 +110,7 @@ dt-player はその周辺ツール。目的は2つ。
 | ラデツキー行進曲 ショート版 | 98 | 49-78 | 序奏+主部のみ |
 | ラデツキー行進曲 完全版 | 549 | 49-79 | 序奏・主部・中間部・トリオ・終止 |
 | 荒野の果てに | 77 | 48-74 | GLORIA(仏キャロル)。1番+リフレイン |
+| Joy to the World | 57 | 50-74 | ANTIOCH。ニ長調。1番のみ(前奏は省く) |
 
 ### 出典と検証方法(README に記載すること)
 
@@ -117,6 +118,12 @@ dt-player はその周辺ツール。目的は2つ。
 
 - トルコ行進曲: piano-midi.de 由来の MIDI(`ClassicalPianoMIDI-dataset`)の右手最上声と照合
 - 木星 / 荒野の果てに: Hymnary.org でパブリックドメインとして公開されている MusicXML。荒野の果てには四声譜と旋律譜の2種を突き合わせて確認
+- Joy to the World: Open Hymnal Project (2005 Revision) がパブリックドメインとして公開している四声の楽譜。PDF と MIDI の両方が同じ出典から出ている
+  - 楽譜 http://openhymnal.org/Pdf/Joy_To_The_World-Antioch.pdf
+  - MIDI http://openhymnal.org/Midi/Joy_To_The_World-Antioch.mid
+  - 楽譜の表記: Words: Isaac Watts, 1719 / Music: 'Antioch' pieced together from "Messiah" George F. Handel, 1741 / Setting: Lowell Mason, 1836 / copyright: public domain
+  - MIDI のソプラノ声部から1番(前奏7音を除く57音)を抽出し、同梱の PDF 楽譜と調号・拍子・構成を突き合わせた。低音はバス声部の根音を C3〜B3 に、内声はテナー声部を旋律の下に置いた
+  - 前奏(終止句を先に弾く讃美歌の慣習)は、タップで弾く曲としては不自然なので省いた
 - ラデツキー行進曲: ニコニ・コモンズの MIDI 素材「【クラシック】ラデツキー行進曲」(作品番号 nc891、投稿者 nano_001、2008/08/16 登録)から抽出。第1ヴァイオリンを主軸に、フルート・クラリネットと音の一致を確認。トリオは第1ヴァイオリンに打ち込みの乱れがあったためオーボエを使用
   - 素材ページ: https://commons.nicovideo.jp/works/nc891
   - ライセンス画面の控え: `docs/license-nc891.png`(ログイン後の利用条件表を保存したもの)
