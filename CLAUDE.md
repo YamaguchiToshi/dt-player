@@ -27,6 +27,9 @@ data/songs/*.json       曲の本体。素のイベント配列
 sf/*.js                 音色データ(生成物)。sf/LICENSE に帰属表示
 tools/build-sf.py       sf/*.js を作り直す
 tools/check-songs.py    data/ の整合を検証する
+tools/build-icons.py    icons/*.png を icon.svg から作り直す
+icons/                  アイコン。icon.svg が原本、PNG は生成物
+manifest.json           ホーム画面に追加したときの設定
 docs/license-nc891.png  ラデツキー行進曲の素材ライセンスの控え
 dt-player-仕様書.md      作業の一次情報源
 ```
@@ -40,6 +43,7 @@ open index.html                  # file:// でも動く(SoundFont だけは合�
 python3 -m http.server 8000      # sf/ を読ませるにはこちら
 python3 tools/build-sf.py        # sf/*.js を作り直す(通常は不要)
 python3 tools/check-songs.py     # data/ の整合を検証。--fix でキャッシュを直す
+python3 tools/build-icons.py     # アイコンの絵を変えたときだけ
 ```
 
 **`open index.html` では曲が読めない。** 曲データは `fetch` で取るので `file://` では動かない(理由を画面に出して止まる)。曲を触るときは必ず簡易サーバ越しに見ること。
@@ -135,6 +139,20 @@ python3 tools/check-songs.py     # data/ の整合を検証。--fix でキャッ
 読み込みは選ばれた曲の分だけ。取得済みは `Songs.cache` に残す。失敗しても黙って止まらず、譜面の場所に理由を出して「再試行」を出す。`file://` は fetch する前に断って、すぐ理由を見せる(投げても必ず失敗し、ブラウザが余計な警告も出すため)。
 
 曲を足す手順は `data/songs/<id>.json` を置いて `data/songs.json` に1行足すだけ。`index.html` は触らない。
+
+### ホーム画面に追加したとき
+
+iPad で「ホーム画面に追加」して全画面で使うことを前提にしてある。
+
+**iPadOS はホーム画面のアイコンに manifest を見ない。`<link rel="apple-touch-icon">` を使う。** 152(iPad) / 167(iPad Pro) / 180(Retina) の3寸法を置いてある。manifest 側の 192・512 は Android やデスクトップ用。どちらか片方だけにしないこと。
+
+アイコンは透明部分を持たない。iOS は透明を黒く塗るため、角まで地色で埋めてある。`icons/icon.svg` が原本で、PNG は `tools/build-icons.py` の生成物。手で編集しない。図柄は音符の玉をピアノロールの四角にして1本のレーンに乗せたもので、中身は中心から半径 367/512 に収めてある(Android の maskable が要求する円の内側)。
+
+`@media (display-mode:standalone)` で上下の余白に**下限を設けている**。status bar を透過(`black-translucent`)にして全画面を使うが、`env(safe-area-inset-top)` が 0 を返す端末に当たると曲名が status bar に隠れる。`max(env(safe-area-inset-top),22px)` で必ず逃がす。通常のブラウザでは足さない。
+
+保存リンクは**ホーム画面から起動しているときだけ `target="_blank"`** にする。同じ画面で開くと、保存されずに表示されたとき戻る手段がなくなるため。`standalone` の判定は `display-mode` と `navigator.standalone` の両方を見る。
+
+**Service Worker は入れていない。** 仕様書 6 章が「最後に入れる。更新の反映が分かりにくくなり、開発中の切り分けが難しくなる」としているため。
 
 ### 弾けるエフェクト
 

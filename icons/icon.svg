@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="dt-player">
+  <!-- dt-player のアイコン。音符の玉をピアノロールの四角にして、
+       ちょうど1本のレーンに乗せてある。tools/build-icons.py が PNG を作る。
+       中身は中心から半径 367/512 に収まっている。Android の maskable が
+       要求する円(半径 40%)の内側なので、丸く切られても欠けない。 -->
+  <rect width="1024" height="1024" fill="#13131a"/>
+  <g fill="#7fa8b8">
+    <rect x="0" y="606" width="1024" height="188" opacity=".14"/>
+    <rect x="0" y="386" width="1024" height="188" opacity=".055"/>
+    <rect x="0" y="826" width="1024" height="188" opacity=".055"/>
+  </g>
+  <g fill="#f5a524" transform="translate(512 512) scale(.9) translate(-512 -512)">
+    <rect x="250" y="606" width="352" height="188" rx="26"/>
+    <rect x="556" y="214" width="46" height="470"/>
+    <path d="M602 214 C 742 268 796 344 790 452 C 786 372 712 316 602 330 Z"/>
+  </g>
+</svg>

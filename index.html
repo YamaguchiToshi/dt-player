@@ -1,7 +1,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<!-- ホーム画面から起動したときに Safari のバーを出さない。
+     iPadOS はホーム画面のアイコンに manifest ではなく apple-touch-icon を使う。 -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="dt-player">
+<meta name="theme-color" content="#13131a">
 <meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
+<link rel="apple-touch-icon" sizes="167x167" href="icons/icon-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+<link rel="manifest" href="manifest.json">
 <title>dt-player</title>
 <style>
 :root{
@@ -146,6 +158,23 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;
   -webkit-appearance:none;appearance:none;touch-action:manipulation}
 .file:hover{color:var(--ink);border-color:var(--edge-hi)}
 .file input{display:none}
+
+/* ホーム画面から起動したとき。
+   status bar を透過にして全画面を使うが、上端の余白は必ず確保する。
+   env(safe-area-inset-top) が 0 を返す端末でも文字が status bar に
+   隠れないよう、standalone のときだけ下限を設ける。 */
+@media (display-mode:standalone){
+  .top{
+    padding-top:max(env(safe-area-inset-top),22px);
+    height:calc(var(--bar) + max(env(safe-area-inset-top),22px));
+  }
+  .panel{padding-top:calc(20px + max(env(safe-area-inset-top),22px))}
+  .close{top:calc(14px + max(env(safe-area-inset-top),22px))}
+  .read{
+    padding-bottom:max(env(safe-area-inset-bottom),10px);
+    height:calc(var(--read) + max(env(safe-area-inset-bottom),10px));
+  }
+}
 
 @media (max-width:560px){
   :root{--read:68px}
@@ -843,6 +872,10 @@ document.addEventListener('visibilitychange',()=>{
 });
 
 /* ---------- 組み立て ---------- */
+/* ホーム画面から起動しているか。保存リンクの扱いを変えるのに使う。 */
+const standalone = (window.matchMedia&&matchMedia('(display-mode:standalone)').matches)
+                || navigator.standalone===true;
+
 const list=document.getElementById('songs'),
       songmsg=document.getElementById('songmsg'),
       elRetry=document.getElementById('retry');
@@ -866,6 +899,11 @@ function buildList(){
       const a=document.createElement('a');
       const nm=m.title.normalize?m.title.normalize('NFC'):m.title;   // NFD 濁点対策
       a.className='dl'; a.href='data/'+m.file; a.setAttribute('download',nm+'.json');
+      if(standalone){
+        // ホーム画面から起動しているときは別画面で開く。
+        // 同じ画面で開くと、保存されずに表示されたとき戻る手段がなくなる。
+        a.target='_blank'; a.rel='noopener';
+      }
       a.setAttribute('aria-label',m.title+' のデータを保存');
       a.title=m.title+' のデータを保存';
       a.textContent='\u2193';

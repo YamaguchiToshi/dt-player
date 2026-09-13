@@ -1,0 +1,16 @@
+{
+  "name": "dt-player",
+  "short_name": "dt-player",
+  "description": "タップ演奏データを1音ずつ進めて演奏します。",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#13131a",
+  "theme_color": "#13131a",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

@@ -249,6 +249,8 @@ WebAudioFont を使う。理由は、GM 音源が1楽器1 JS ファイル(数百
 
 #### PWA
 
+**manifest とアイコンは完了している(2026-09-14)。** `display: standalone`、`apple-touch-icon` を3寸法、`apple-mobile-web-app-*` 一式、全画面時の余白の下限、保存リンクの扱いまで入れた。Service Worker は下の但し書きどおり未着手。
+
 - `manifest.json` にアイコン・名前・`display: standalone` を置く。iPad で「ホーム画面に追加」したときに全画面アプリとして起動し、演奏中に Safari のバーが出てこない
 - Service Worker でファイルをキャッシュすれば2回目以降はオフラインで動く。学校の通信環境が不安定な場合に効く
 - **Service Worker は最後に入れる。** 更新の反映が分かりにくくなり、開発中の切り分けが難しくなる
