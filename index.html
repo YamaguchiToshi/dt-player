@@ -210,16 +210,55 @@ const nameOf=n=>NAMES[n%12]+(Math.floor(n/12)-1);
    減衰しない音色は離すまで伸ばす。これはこのアプリの表現の核なので、
    どちらの実装でも崩さない(仕様書 8 章)。 */
 const TONES={
-  organ:{label:'オルガン',osc:'sine',parts:[[1,1],[2,.45],[4,.2]],a:.012,d:0,r:.14,cut:4200,gain:.85},
-  piano:{label:'ピアノ',osc:'triangle',parts:[[1,1],[2,.3]],a:.004,d:1.8,r:.18,cut:5200,gain:1},
-  strings:{label:'ストリングス',osc:'sawtooth',parts:[[.997,.5],[1.003,.5],[2,.12]],a:.16,d:0,r:.5,cut:2300,gain:.7}
+  organ:{label:'オルガン',osc:'sine',parts:[[1,1],[2,.45],[4,.2]],a:.012,d:0,r:.14,cut:4200,gain:.85,wet:.34,sr:.20},
+  piano:{label:'ピアノ',osc:'triangle',parts:[[1,1],[2,.3]],a:.004,d:1.8,r:.18,cut:5200,gain:1,wet:.28,sr:.18},
+  strings:{label:'ストリングス',osc:'sawtooth',parts:[[.997,.5],[1.003,.5],[2,.12]],a:.16,d:0,r:.5,cut:2300,gain:.7,wet:.36,sr:.40}
 };
-let tone='organ', ctx=null, master=null, live=[];
+let tone='organ', ctx=null, master=null, wetGain=null, live=[];
+
+/* 部屋の響きを作る。
+   スイッチひとつで弾く以上、離してから次を押すまでのあいだは必ず無音になる。
+   実際の楽器はそこを部屋の反射音が埋めていて、切れ切れには聞こえない。
+   ここで足しているのはその空間。押している間だけ音が伸びるという約束は変えない。
+
+   音源ファイルを増やしたくないので、インパルス応答はその場で作る。
+   雑音を指数で減衰させ、時間が経つほど高域を丸める(実際の部屋では
+   高い音のほうが早く減る)。 */
+function setWet(v,sec){
+  if(!wetGain||!ctx) return;
+  const t=ctx.currentTime;
+  wetGain.gain.cancelScheduledValues(t);
+  wetGain.gain.setValueAtTime(wetGain.gain.value,t);
+  wetGain.gain.linearRampToValueAtTime(v,t+(sec||.12));
+}
+
+function makeRoom(ac,secs,decay,damp){
+  const rate=ac.sampleRate, len=Math.max(1,Math.floor(rate*secs));
+  const buf=ac.createBuffer(2,len,rate);
+  for(let ch=0;ch<2;ch++){
+    const d=buf.getChannelData(ch);
+    let lp=0;
+    for(let i=0;i<len;i++){
+      const t=i/len;
+      lp += ((Math.random()*2-1)-lp)*(damp*(1-t*.72));
+      d[i]=lp*Math.pow(1-t,decay);
+    }
+  }
+  return buf;
+}
 
 function audio(){
   if(!ctx){
     ctx=new (window.AudioContext||window.webkitAudioContext)({latencyHint:'interactive'});
-    master=ctx.createGain(); master.gain.value=.22; master.connect(ctx.destination);
+    master=ctx.createGain(); master.gain.value=.22;
+    // 直接音はそのまま、脇に響きを分岐させる
+    master.connect(ctx.destination);
+    try{
+      const conv=ctx.createConvolver();
+      conv.buffer=makeRoom(ctx,1.9,2.6,.30);
+      wetGain=ctx.createGain(); wetGain.gain.value=TONES[tone].wet;
+      master.connect(conv); conv.connect(wetGain); wetGain.connect(ctx.destination);
+    }catch(e){ wetGain=null; }   // 響きが作れなくても演奏は続ける
     // iPadOS Safari:最初のタップで無音を1つ鳴らして音声出力を解錠する
     const b=ctx.createBufferSource();
     b.buffer=ctx.createBuffer(1,1,ctx.sampleRate); b.connect(ctx.destination); b.start(0);
@@ -274,7 +313,7 @@ const SF={
   },
   ready:function(t){return this.state[t]==='ready'},
   decays:function(t){const b=this.banks[t]; return b?b.decay:TONES[t].d>0},
-  rel:function(t){return this.decays(t)?TONES[t].r:.22},
+  rel:function(t){return this.decays(t)?TONES[t].r:TONES[t].sr},
   noteOn:function(midi,vel){
     const b=this.banks[tone];
     if(!b){Synth.noteOn(midi,vel);return}          // 念のための保険
@@ -675,7 +714,14 @@ cv.addEventListener('dblclick',ev=>ev.preventDefault());
 cv.addEventListener('contextmenu',ev=>ev.preventDefault());
 cv.addEventListener('gesturestart',ev=>ev.preventDefault());
 addEventListener('blur',release);
-document.addEventListener('visibilitychange',()=>{ if(document.hidden){release(); if(ctx) allOff();} });
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){
+    release(); if(ctx) allOff();
+    setWet(0,.1);                  // 裏に回ったら響きも残さない
+  }else{
+    setWet(TONES[tone].wet,.1);
+  }
+});
 
 /* ---------- 組み立て ---------- */
 const list=document.getElementById('songs');
@@ -700,6 +746,7 @@ Object.entries(TONES).forEach(([k,v])=>{
 function setTone(k){
   if(ctx) allOff();
   tone=k;
+  setWet(TONES[k].wet);
   [...tw.children].forEach((c,i)=>c.setAttribute('aria-pressed',String(Object.keys(TONES)[i]===k)));
   ensureSF();
 }
