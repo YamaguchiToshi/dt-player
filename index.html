@@ -191,7 +191,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;
 
 <div class="top">
   <button class="open" id="open" aria-expanded="false" aria-controls="panel">
-    <span class="bars" aria-hidden="true"><i></i><i></i><i></i></span><span class="lbl">曲と音色</span>
+    <span class="bars" aria-hidden="true"><i></i><i></i><i></i></span><span class="lbl" id="lblOpen">曲と音色</span>
   </button>
   <p class="title" id="title">きらきら星</p>
   <p class="alert" id="alert" data-on="0"></p>
@@ -221,24 +221,88 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;
     <p class="mark">dt-player</p>
   </div>
   <div class="sec">
-    <p class="cap"><span>曲</span><span>タップ数</span></p>
+    <p class="cap"><span id="capSongs">曲</span><span id="capTaps">タップ数</span></p>
     <div id="songs"></div>
-    <p class="hintline">↓ でその曲のデータを保存できます。</p>
+    <p class="hintline" id="capSave">↓ でその曲のデータを保存できます。</p>
     <p class="sfmsg" id="songmsg" data-bad="0"></p>
   </div>
   <div class="sec">
-    <p class="cap">音色</p>
+    <p class="cap" id="capTone">音色</p>
     <div class="tones" id="tones"></div>
     <p class="sfmsg" id="sfmsg" data-bad="0"></p>
   </div>
   <div class="sec">
-    <p class="cap">自分で作ったデータ</p>
-    <label class="file">JSONファイルを選ぶ<input type="file" id="file" accept=".json,application/json,text/json,text/plain"></label>
+    <p class="cap" id="capOwn">自分で作ったデータ</p>
+    <label class="file" id="capFile">JSONファイルを選ぶ<input type="file" id="file" accept=".json,application/json,text/json,text/plain"></label>
   </div>
 </aside>
 
 <script></script>
 <script>
+/* ---------- ことば ---------- */
+/* 日本語以外のブラウザには英語の画面を出す。コードとコメントは日本語のまま。
+   ここに並べるのは画面に出る文字だけ。左が日本語、右が英語。
+   {…} は差し込み。連携先のアプリ名や団体名は英語でも書かない。 */
+const EN={
+  '曲と音色':'Songs & Sound',
+  'ピアノロール':'Piano roll',
+  '次の音':'Next note',
+  '演奏':'Performance',
+  'おわりました':'Finished',
+  '「最初から」でもう一度':'Press "Start over" to play again',
+  '再試行':'Retry',
+  '1つ戻す':'Back one',
+  '最初から':'Start over',
+  '閉じる':'Close',
+  '曲':'Songs',
+  'タップ数':'Taps',
+  '↓ でその曲のデータを保存できます。':'Use ↓ to save the data file for a song.',
+  '音色':'Sound',
+  '自分で作ったデータ':'Your own data',
+  'JSONファイルを選ぶ':'Choose a JSON file',
+  'オルガン':'Organ',
+  'ピアノ':'Piano',
+  'ストリングス':'Strings',
+  '読み込んでいます':'Loading',
+  '読み込み中':'Loading',
+  '読み込めません':'Cannot load',
+  '曲の一覧を読み込んでいます':'Loading the song list',
+  '一覧が空です':'The song list is empty',
+  'イベントの配列ではありません':'Not an array of events',
+  'values を持つイベントがありません':'No event has a "values" list',
+  '音色データが空です':'The sound data is empty',
+  '音声を復号できません':'Cannot decode the audio',
+  'この環境では音を復号できません':'This browser cannot decode the audio',
+  '音を読み込めませんでした':'Could not load the sound',
+  'ファイルを読めませんでした。':'Could not read the file.',
+  '{name} を読み込んでいます':'Loading {name}',
+  '{name} のデータを保存':'Save the data for {name}',
+  '描画できません: {msg}':'Cannot draw: {msg}',
+  'sf/{id}.js を読み込めません':'Cannot load sf/{id}.js',
+  'ファイルを直接開くと曲データを読み込めません。公開されている URL を開くか、このフォルダを簡易サーバで配信してください。':
+    'Song data cannot be loaded when this file is opened directly. Open the published URL, or serve this folder with a local web server.',
+  '曲データを読み込めませんでした。{detail}':'Could not load the song data. {detail}',
+  'MIDI 48〜84 の外に {n} 種類の音があります（{list}）。iPad 実機では鳴りません。':
+    '{n} pitches fall outside MIDI 48-84 ({list}). They will not sound on the iPad.',
+  '{name}の音を読み込んでいます。それまでは簡易な音で鳴ります。':
+    'Loading the {name} sound. A simple synthesized sound is used until it is ready.',
+  '{msg} 簡易な音で鳴らします。':'{msg}. A simple synthesized sound is used instead.',
+  'このファイルは読み込めません。{detail}タップ演奏データの JSON を選んでください。':
+    'This file cannot be loaded. {detail}Please choose a tap performance data JSON file.'
+};
+/* いちばん優先している言語だけを見る。日本語なら日本語、それ以外は英語。 */
+const lang=(function(){
+  const l=navigator.language||(navigator.languages&&navigator.languages[0])||'';
+  return /^ja/i.test(l)?'ja':'en';
+})();
+document.documentElement.lang=lang;
+function t(s){ return (lang==='en'&&EN[s])?EN[s]:s; }
+function tf(s,v){
+  let r=t(s);
+  for(const k in v) r=r.split('{'+k+'}').join(v[k]);
+  return r;
+}
+
 const NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const BLACK=[1,3,6,8,10];
 const nameOf=n=>NAMES[n%12]+(Math.floor(n/12)-1);
@@ -378,27 +442,27 @@ const SF={
     src.connect(g); g.connect(master); src.start(t);
     live.push({g:g,nodes:[src]});
   },
-  load:function(t,done){
+  load:function(t2,done){
     const self=this;
-    if(self.state[t]==='ready'){done();return}
-    if(self.state[t]==='loading') return;
-    self.state[t]='loading'; self.msg[t]=''; done();
+    if(self.state[t2]==='ready'){done();return}
+    if(self.state[t2]==='loading') return;
+    self.state[t2]='loading'; self.msg[t2]=''; done();
 
-    const finish=function(ok,m){ self.state[t]=ok?'ready':'error'; self.msg[t]=m||''; done(); };
+    const finish=function(ok,m){ self.state[t2]=ok?'ready':'error'; self.msg[t2]=m||''; done(); };
 
     const build=function(){
-      const d=DTSF.raw[t];
-      if(!d||!d.zones||!d.zones.length){finish(false,'音色データが空です');return}
+      const d=DTSF.raw[t2];
+      if(!d||!d.zones||!d.zones.length){finish(false,t('音色データが空です'));return}
       const out=[]; let left=d.zones.length;
       const settle=function(){ if(--left) return;
         const good=out.filter(function(z){return z});
-        if(!good.length){finish(false,'音声を復号できません');return}
+        if(!good.length){finish(false,t('音声を復号できません'));return}
         good.sort(function(a,b){return a.pitch-b.pitch});
-        self.banks[t]={decay:!!d.decay,zones:good};
+        self.banks[t2]={decay:!!d.decay,zones:good};
         finish(true);
       };
       const ac=self.decodeCtx();
-      if(!ac){finish(false,'この環境では音を復号できません');return}
+      if(!ac){finish(false,t('この環境では音を復号できません'));return}
       d.zones.forEach(function(z,i){
         let bytes, done1=false;
         const ok=function(buf){ if(done1)return; done1=true;
@@ -415,11 +479,11 @@ const SF={
       });
     };
 
-    if(DTSF.raw[t]){build();return}
+    if(DTSF.raw[t2]){build();return}
     const sc=document.createElement('script');
-    sc.src='sf/'+t+'.js';
+    sc.src='sf/'+t2+'.js';
     sc.onload=build;
-    sc.onerror=function(){finish(false,'sf/'+t+'.js を読み込めません')};
+    sc.onerror=function(){finish(false,tf('sf/{id}.js を読み込めません',{id:t2}))};
     document.head.appendChild(sc);
   }
 };
@@ -462,8 +526,9 @@ const Songs={
   },
   why:function(err){
     if(location.protocol==='file:')
-      return 'ファイルを直接開くと曲データを読み込めません。公開されている URL を開くか、このフォルダを簡易サーバで配信してください。';
-    return '曲データを読み込めませんでした。'+((err&&err.message)?'（'+err.message+'）':'');
+      return t('ファイルを直接開くと曲データを読み込めません。公開されている URL を開くか、このフォルダを簡易サーバで配信してください。');
+    return tf('曲データを読み込めませんでした。{detail}',
+              {detail:(err&&err.message)?'（'+err.message+'）':''});
   }
 };
 
@@ -471,9 +536,9 @@ const Songs={
    iPad に入れる前の試聴・検証がこのアプリの用途なので、
    壊れたデータを黙って受け取らない。 */
 function validate(d){
-  if(!Array.isArray(d)) throw new Error('イベントの配列ではありません');
+  if(!Array.isArray(d)) throw new Error(t('イベントの配列ではありません'));
   const ev=d.filter(function(e){ return e&&Array.isArray(e.values)&&e.values.length; });
-  if(!ev.length) throw new Error('values を持つイベントがありません');
+  if(!ev.length) throw new Error(t('values を持つイベントがありません'));
   return ev;
 }
 /* 音域外は落とさず、鳴らさないだけにして知らせる(仕様書 2 章) */
@@ -485,7 +550,11 @@ function outOfRange(ev){
 
 /* ---------- 状態 ---------- */
 let song=null, idx=0, scroll=0, lo=48, hi=84, held=false;
-let stage='loading', stageMsg='読み込んでいます', pending=null;
+let stage='loading', stageMsg=t('読み込んでいます'), pending=null;
+
+/* 画面に出す曲名。英語の画面では一覧の title_en を使う。
+   無い曲は日本語のまま出す(黙って空にしない)。 */
+function titleOf(m){ return (lang==='en'&&m&&m.title_en)?m.title_en:(m?m.title:''); }
 
 function pitchRange(s){
   let a=127,b=0;
@@ -500,7 +569,7 @@ function setStage(kind,msg){
   update();
 }
 function apply(meta,events){
-  song={name:meta.title,events:events,id:meta.id};
+  song={name:titleOf(meta),events:events,id:meta.id};
   idx=0; scroll=0; [lo,hi]=pitchRange(song);
   bits.length=0; pops.length=0; sparkIdx=-1;
   if(ctx) allOff();
@@ -511,7 +580,7 @@ function apply(meta,events){
 function choose(meta){
   pending=meta;
   if(Songs.cache[meta.id]){ apply(meta,Songs.cache[meta.id]); return; }
-  setStage('loading', meta.title+' を読み込んでいます');
+  setStage('loading', tf('{name} を読み込んでいます',{name:titleOf(meta)}));
   Songs.get('data/'+meta.file).then(function(d){
     const ev=validate(d);
     Songs.cache[meta.id]=ev;
@@ -521,9 +590,9 @@ function choose(meta){
   });
 }
 function boot(){
-  setStage('loading','曲の一覧を読み込んでいます');
+  setStage('loading',t('曲の一覧を読み込んでいます'));
   Songs.get('data/songs.json').then(function(d){
-    if(!d||!Array.isArray(d.songs)||!d.songs.length) throw new Error('一覧が空です');
+    if(!d||!Array.isArray(d.songs)||!d.songs.length) throw new Error(t('一覧が空です'));
     Songs.list=d.songs.slice();
     buildList();
     choose(Songs.list[0]);
@@ -659,7 +728,7 @@ function draw(ts){
     g2.setTransform(1,0,0,1,0,0);
     g2.fillStyle='#16212b'; g2.fillRect(0,0,cv.width,cv.height);
     g2.fillStyle='#e6edf2'; g2.font='13px system-ui';
-    g2.fillText('描画できません: '+err.message,14,26);
+    g2.fillText(tf('描画できません: {msg}',{msg:err.message}),14,26);
   }
   requestAnimationFrame(draw);
 }
@@ -766,9 +835,9 @@ function paint(dt){
     g2.fillStyle='rgba(19,19,26,.88)'; g2.fillRect(0,0,W,H);
     g2.textAlign='center'; g2.textBaseline='middle';
     g2.fillStyle='#e9edf2'; g2.font='600 21px '+SANS;
-    g2.fillText('おわりました',W/2,H/2-13);
+    g2.fillText(t('おわりました'),W/2,H/2-13);
     g2.fillStyle='#8b93a2'; g2.font='13px '+SANS;
-    g2.fillText('「最初から」でもう一度',W/2,H/2+15);
+    g2.fillText(t('「最初から」でもう一度'),W/2,H/2+15);
     g2.fillStyle='#f5a524';
     g2.fillRect(W/2-14,H/2+38,28,2);
     g2.textAlign='left';
@@ -780,16 +849,16 @@ const elCount=document.getElementById('count'), elNext=document.getElementById('
 function update(){
   if(!song){
     elCount.innerHTML='<b>0</b> / 0';
-    elTitle.textContent=(stage==='error')?'読み込めません':'読み込み中';
-    elCap.textContent='次の音'; elNext.dataset.end='1'; elNext.textContent='—';
+    elTitle.textContent=(stage==='error')?t('読み込めません'):t('読み込み中');
+    elCap.textContent=t('次の音'); elNext.dataset.end='1'; elNext.textContent='—';
     return;
   }
   elCount.innerHTML='<b>'+idx+'</b> / '+song.events.length;
   elTitle.textContent=song.name;
   const done=idx>=song.events.length;
-  elCap.textContent=done?'演奏':'次の音';
+  elCap.textContent=done?t('演奏'):t('次の音');
   elNext.dataset.end=done?'1':'0';
-  if(done){ elNext.textContent='おわりました'; return; }
+  if(done){ elNext.textContent=t('おわりました'); return; }
   elNext.textContent='';
   song.events[idx].values.forEach(function(v){
     const sp=document.createElement('span'); sp.textContent=nameOf(v); elNext.appendChild(sp);
@@ -888,7 +957,7 @@ function buildList(){
     const b=document.createElement('button');
     b.className='song'; b.setAttribute('aria-current','false');
     b.innerHTML='<span class="nm"></span><span class="taps"></span>';
-    b.querySelector('.nm').textContent=m.title;
+    b.querySelector('.nm').textContent=titleOf(m);
     b.querySelector('.taps').textContent=m.taps==null?'':m.taps;
     // 曲を選ぶのは決めの操作なので、選んだら閉じて演奏に戻す
     b.onclick=function(){ choose(m); shut(); };
@@ -897,15 +966,16 @@ function buildList(){
       // 個別ファイルはそのまま iPad アプリに持っていける形なので、
       // その場で保存できるようにする(仕様書 6 章 第2段階)
       const a=document.createElement('a');
-      const nm=m.title.normalize?m.title.normalize('NFC'):m.title;   // NFD 濁点対策
+      const ttl=titleOf(m);
+      const nm=ttl.normalize?ttl.normalize('NFC'):ttl;   // NFD 濁点対策
       a.className='dl'; a.href='data/'+m.file; a.setAttribute('download',nm+'.json');
       if(standalone){
         // ホーム画面から起動しているときは別画面で開く。
         // 同じ画面で開くと、保存されずに表示されたとき戻る手段がなくなる。
         a.target='_blank'; a.rel='noopener';
       }
-      a.setAttribute('aria-label',m.title+' のデータを保存');
-      a.title=m.title+' のデータを保存';
+      a.setAttribute('aria-label',tf('{name} のデータを保存',{name:ttl}));
+      a.title=tf('{name} のデータを保存',{name:ttl});
       a.textContent='\u2193';
       row.appendChild(a);
     }
@@ -924,15 +994,15 @@ function markCurrent(id){
 function warnRange(ev){
   const bad=outOfRange(ev);
   if(!bad.length){ songmsg.textContent=''; songmsg.dataset.bad='0'; return; }
-  songmsg.textContent='MIDI 48〜84 の外に '+bad.length+' 種類の音があります（'+
-    bad.map(nameOf).join(' ')+'）。iPad 実機では鳴りません。';
+  songmsg.textContent=tf('MIDI 48〜84 の外に {n} 種類の音があります（{list}）。iPad 実機では鳴りません。',
+                         {n:bad.length,list:bad.map(nameOf).join(' ')});
   songmsg.dataset.bad='1';
 }
 
 const tw=document.getElementById('tones');
 Object.entries(TONES).forEach(([k,v])=>{
   const b=document.createElement('button');
-  b.className='tone'; b.textContent=v.label; b.setAttribute('aria-pressed',String(k===tone));
+  b.className='tone'; b.textContent=t(v.label); b.setAttribute('aria-pressed',String(k===tone));
   b.onclick=()=>setTone(k);   // 聴き比べられるよう引き出しは開いたままにする
   tw.appendChild(b);
 });
@@ -951,12 +1021,15 @@ function ensureSF(){ SF.load(tone,sfStatus); pickEngine(); sfStatus(); }
 function sfStatus(){
   pickEngine();
   /* うまくいっているときは黙る。読み込み中と失敗だけ伝える(仕様書 8 章)。 */
-  let t='', bad='0';
-  if(SF.state[tone]==='loading') t=TONES[tone].label+'の音を読み込んでいます。それまでは簡易な音で鳴ります。';
-  else if(SF.state[tone]!=='ready'){ t=(SF.msg[tone]||'音を読み込めませんでした')+' 簡易な音で鳴らします。'; bad='1'; }
-  sfmsg.textContent=t; sfmsg.dataset.bad=bad;
+  let msg='', bad='0';
+  if(SF.state[tone]==='loading')
+    msg=tf('{name}の音を読み込んでいます。それまでは簡易な音で鳴ります。',{name:t(TONES[tone].label)});
+  else if(SF.state[tone]!=='ready'){
+    msg=tf('{msg} 簡易な音で鳴らします。',{msg:SF.msg[tone]||t('音を読み込めませんでした')}); bad='1';
+  }
+  sfmsg.textContent=msg; sfmsg.dataset.bad=bad;
   // 引き出しが閉じていても失敗に気づけるようにする(仕様書 8 章)
-  elAlert.textContent=bad==='1'?'音を読み込めませんでした':'';
+  elAlert.textContent=bad==='1'?t('音を読み込めませんでした'):'';
   elAlert.dataset.on=bad;
 }
 
@@ -974,15 +1047,36 @@ document.getElementById('file').onchange=ev=>{
       Songs.list.push(meta); Songs.cache[meta.id]=events;
       buildList(); apply(meta,events); shut();
     }catch(e){
-      songmsg.textContent='このファイルは読み込めません。'+(e&&e.message?e.message+'。':'')+'タップ演奏データの JSON を選んでください。';
+      songmsg.textContent=tf('このファイルは読み込めません。{detail}タップ演奏データの JSON を選んでください。',
+                             {detail:(e&&e.message)?e.message+'。':''});
       songmsg.dataset.bad='1';
     }
   };
-  r.onerror=()=>{ songmsg.textContent='ファイルを読めませんでした。'; songmsg.dataset.bad='1'; };
+  r.onerror=()=>{ songmsg.textContent=t('ファイルを読めませんでした。'); songmsg.dataset.bad='1'; };
   r.readAsText(f);
 };
 
-fit(); ensureSF(); draw(); boot();
+/* 画面に直接書いてある文字を英語に差し替える。日本語のときは何もしない。
+   HTML 側を日本語のままにしてあるので、英語圏では一瞬だけ日本語が見えるが、
+   JS が動かない環境でも文字が消えないほうを取る。 */
+function applyLang(){
+  if(lang==='ja') return;
+  const set=function(id,s){ const e=document.getElementById(id); if(e) e.textContent=t(s); };
+  set('lblOpen','曲と音色'); set('capSongs','曲'); set('capTaps','タップ数');
+  set('capSave','↓ でその曲のデータを保存できます。');
+  set('capTone','音色'); set('capOwn','自分で作ったデータ');
+  document.getElementById('retry').textContent=t('再試行');
+  document.getElementById('back').textContent=t('1つ戻す');
+  document.getElementById('reset').textContent=t('最初から');
+  document.getElementById('close').setAttribute('aria-label',t('閉じる'));
+  panel.setAttribute('aria-label',t('曲と音色'));
+  cv.setAttribute('aria-label',t('ピアノロール'));
+  // ファイル選択は中に input を抱えているので、先頭の文字だけ差し替える
+  const f=document.getElementById('capFile');
+  if(f&&f.firstChild) f.firstChild.nodeValue=t('JSONファイルを選ぶ');
+}
+
+applyLang(); fit(); ensureSF(); draw(); boot();
 </script>
 
 <!-- アクセス数の把握(Cloudflare Web Analytics)。cookie を使わず個人を識別しない。

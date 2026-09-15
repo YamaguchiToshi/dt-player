@@ -43,8 +43,14 @@ def main():
         seen_files.add(m["file"])
 
         # 題名は NFC で持つ。macOS 由来の NFD 濁点が混ざると照合が崩れる
-        if m["title"] != unicodedata.normalize("NFC", m["title"]):
-            problems.append("%s: 題名が NFC で正規化されていない" % sid)
+        for key in ("title", "title_en"):
+            v = m.get(key)
+            if v is None:
+                if key == "title_en":
+                    problems.append("%s: title_en が無い(英語の画面で日本語のまま出る)" % sid)
+                continue
+            if v != unicodedata.normalize("NFC", v):
+                problems.append("%s: %s が NFC で正規化されていない" % (sid, key))
 
         path = os.path.join(DATA, m["file"])
         if not os.path.exists(path):

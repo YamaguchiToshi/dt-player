@@ -3,6 +3,7 @@
     {
       "id": "kirakira-boshi",
       "title": "きらきら星",
+      "title_en": "Twinkle, Twinkle, Little Star",
       "file": "songs/kirakira-boshi.json",
       "taps": 42,
       "range": [
@@ -15,6 +16,7 @@
     {
       "id": "turkish-march",
       "title": "トルコ行進曲",
+      "title_en": "Turkish March",
       "file": "songs/turkish-march.json",
       "taps": 112,
       "range": [
@@ -27,6 +29,7 @@
     {
       "id": "jupiter",
       "title": "木星",
+      "title_en": "Jupiter",
       "file": "songs/jupiter.json",
       "taps": 89,
       "range": [
@@ -39,6 +42,7 @@
     {
       "id": "jupiter-octave",
       "title": "木星 オクターブ版",
+      "title_en": "Jupiter (octaves)",
       "file": "songs/jupiter-octave.json",
       "taps": 89,
       "range": [
@@ -51,6 +55,7 @@
     {
       "id": "radetzky-short",
       "title": "ラデツキー行進曲 ショート版",
+      "title_en": "Radetzky March (short)",
       "file": "songs/radetzky-short.json",
       "taps": 98,
       "range": [
@@ -63,6 +68,7 @@
     {
       "id": "radetzky-full",
       "title": "ラデツキー行進曲 完全版",
+      "title_en": "Radetzky March (full)",
       "file": "songs/radetzky-full.json",
       "taps": 549,
       "range": [
@@ -75,6 +81,7 @@
     {
       "id": "gloria",
       "title": "荒野の果てに",
+      "title_en": "Angels We Have Heard on High",
       "file": "songs/gloria.json",
       "taps": 77,
       "range": [
@@ -87,6 +94,7 @@
     {
       "id": "joy-to-the-world",
       "title": "Joy to the World",
+      "title_en": "Joy to the World",
       "file": "songs/joy-to-the-world.json",
       "taps": 57,
       "range": [
@@ -99,6 +107,7 @@
     {
       "id": "jingle-bells",
       "title": "Jingle Bells",
+      "title_en": "Jingle Bells",
       "file": "songs/jingle-bells.json",
       "taps": 104,
       "range": [
@@ -111,6 +120,7 @@
     {
       "id": "the-first-noel",
       "title": "The First Noel",
+      "title_en": "The First Noel",
       "file": "songs/the-first-noel.json",
       "taps": 73,
       "range": [
