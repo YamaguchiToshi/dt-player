@@ -99,7 +99,7 @@ dt-player はその周辺ツール。目的は2つ。
 
 ## 4. 収録データ
 
-埋め込み済みの8ファイル。全て著作権の保護期間が終了した楽曲。
+10ファイル。全て著作権の保護期間が終了した楽曲。
 
 | 曲名 | タップ数 | 音域 | 備考 |
 |---|---|---|---|
@@ -111,6 +111,8 @@ dt-player はその周辺ツール。目的は2つ。
 | ラデツキー行進曲 完全版 | 549 | 49-79 | 序奏・主部・中間部・トリオ・終止 |
 | 荒野の果てに | 77 | 48-74 | GLORIA(仏キャロル)。1番+リフレイン |
 | Joy to the World | 57 | 50-74 | ANTIOCH。ニ長調。1番のみ(前奏は省く) |
+| Jingle Bells | 104 | 48-84 | 1番(節+リフレイン)。ハ長調に移した |
+| The First Noel | 73 | 49-74 | 節+リフレイン。ニ長調。1番のみ(前奏は省く) |
 
 ### 出典と検証方法(README に記載すること)
 
@@ -124,6 +126,17 @@ dt-player はその周辺ツール。目的は2つ。
   - 楽譜の表記: Words: Isaac Watts, 1719 / Music: 'Antioch' pieced together from "Messiah" George F. Handel, 1741 / Setting: Lowell Mason, 1836 / copyright: public domain
   - MIDI のソプラノ声部から1番(前奏7音を除く57音)を抽出し、同梱の PDF 楽譜と調号・拍子・構成を突き合わせた。低音はバス声部の根音を C3〜B3 に、内声はテナー声部を旋律の下に置いた
   - 前奏(終止句を先に弾く讃美歌の慣習)は、タップで弾く曲としては不自然なので省いた
+- The First Noel: Open Hymnal Project (2006 Revision)。楽譜の表記は Words/Music: Traditional English carol, possibly dating from as early as the 13th Century / Setting: "The Methodist Sunday School Hymnal", 1911 / copyright: public domain
+  - 楽譜 http://openhymnal.org/Pdf/The_First_Noel-The_First_Noel.pdf
+  - MIDI http://openhymnal.org/Midi/The_First_Noel-The_First_Noel.mid
+  - ニ長調・3/4。四声のソプラノから節+リフレインの73音を取り、PDF の楽譜と調号・拍子・歌詞の配置を突き合わせた。Joy to the World と同じく前奏(終止句10音)が付いているので省いた
+- Jingle Bells: Wikimedia Commons の MIDI「Jingle Bells.mid」(CC0、設定は Rabanus Flavus / Peter Gerloff、旋律は James L. Pierpont 1857)から抽出
+  - https://commons.wikimedia.org/wiki/File:Jingle_Bells.mid
+  - 素材のホ長調から4半音下げてハ長調にした。旋律の音程の並びは変えていない。移調したのは、素材のままだと節の最高音が MIDI 85 になり、音域(48〜84)を1音はみ出すため
+  - 節(2つの楽節)+リフレイン(2つの楽節)の104音。節と主旋律が別トラックに書かれているので、時間の重ならない2トラックをつないで旋律とし、伴奏は残りのトラックでその瞬間に鳴っている和音から取った
+  - 素材は CC0(設定者が権利を放棄)なので、派生物の公開に条件は付かない。旋律自体は 1857 年の作で保護期間終了
+
+**四声の楽譜から伴奏2音を作る手順は機械化してある。** 低音はバス声部を C3〜B3 に収め、内声はテナー声部を旋律の下に置き、テナーが使えないときはアルト声部に落とす。声部が休んでいるところは直前の音を引き伸ばす(伴奏が抜け落ちないように)。**この手順が既存データと同じであることは、Joy to the World の57タップを 57/57 完全に再現することで確かめた。** The First Noel も同じ手順で作ってある。
 - ラデツキー行進曲: ニコニ・コモンズの MIDI 素材「【クラシック】ラデツキー行進曲」(作品番号 nc891、投稿者 nano_001、2008/08/16 登録)から抽出。第1ヴァイオリンを主軸に、フルート・クラリネットと音の一致を確認。トリオは第1ヴァイオリンに打ち込みの乱れがあったためオーボエを使用
   - 素材ページ: https://commons.nicovideo.jp/works/nc891
   - ライセンス画面の控え: `docs/license-nc891.png`(ログイン後の利用条件表を保存したもの)

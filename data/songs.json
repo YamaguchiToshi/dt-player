@@ -95,6 +95,30 @@
       ],
       "note": "ANTIOCH。ニ長調。1番のみ(前奏は省く)",
       "source": "Open Hymnal Project (2005 Revision) の楽譜と MIDI"
+    },
+    {
+      "id": "jingle-bells",
+      "title": "Jingle Bells",
+      "file": "songs/jingle-bells.json",
+      "taps": 104,
+      "range": [
+        48,
+        84
+      ],
+      "note": "1番(節+リフレイン)。ハ長調に移した",
+      "source": "Wikimedia Commons の CC0 の四声設定。旋律は Pierpont 1857"
+    },
+    {
+      "id": "the-first-noel",
+      "title": "The First Noel",
+      "file": "songs/the-first-noel.json",
+      "taps": 73,
+      "range": [
+        49,
+        74
+      ],
+      "note": "節+リフレイン。ニ長調(前奏は省く)",
+      "source": "Open Hymnal Project (2006 Revision) の楽譜と MIDI"
     }
   ]
 }
