@@ -984,3 +984,8 @@ document.getElementById('file').onchange=ev=>{
 
 fit(); ensureSF(); draw(); boot();
 </script>
+
+<!-- アクセス数の把握(Cloudflare Web Analytics)。cookie を使わず個人を識別しない。
+     type="module" は既定で遅延読み込みなので、学校のネットワークで遮断されても
+     演奏には影響しない。音色データと違い、落ちても機能が欠けないもの。 -->
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "ac03e0f4d5644194a5d005a3786f0e9c"}'></script>
